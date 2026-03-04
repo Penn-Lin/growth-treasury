@@ -1659,7 +1659,14 @@ const JB_KEY='$2a$10$T/foAH5VDzXBEKqfLxX99./8tXjJfUKyqwZm/PYEKY.NRU162WC8C';
 const JB_BIN_KEY='gvt_bin_id';
 function setSyncStatus(st,tx){const d=document.getElementById('syncDot'),t=document.getElementById('syncText');if(!d)return;d.className='sync-dot '+st;t.textContent=tx;}
 async function jbReq(m,p,b){const o={method:m,headers:{'X-Master-Key':JB_KEY,'Content-Type':'application/json','X-Bin-Versioning':'false'}};if(b!==undefined)o.body=JSON.stringify(b);const r=await fetch('https://api.jsonbin.io/v3'+p,o);if(!r.ok)throw new Error(r.status);return r.json();}
-async function syncToCloud(){setSyncStatus('syncing','同步中…');try{const p={history:loadHistory(),weekly:JSON.parse(localStorage.getItem('gvt_weekly')||'{}'),debts:loadDebts(),vaultRepay:loadVaultRepayments()};let id=localStorage.getItem(JB_BIN_KEY);if(!id){const r=await jbReq('POST','/b',p);id=r.metadata.id;localStorage.setItem(JB_BIN_KEY,id);}else{await jbReq('PUT','/b/'+id,p);}setSyncStatus('synced','已同步 ✓');}catch(e){setSyncStatus('error','同步失败');}}
+async function syncToCloud(){
+  // Guard: never overwrite cloud with empty history
+  const history = loadHistory();
+  if (history.length === 0) {
+    setSyncStatus('synced', '无数据可同步');
+    return;
+  }
+  setSyncStatus('syncing','同步中…');try{const p={history:history,weekly:JSON.parse(localStorage.getItem('gvt_weekly')||'{}'),debts:loadDebts(),vaultRepay:loadVaultRepayments()};let id=localStorage.getItem(JB_BIN_KEY);if(!id){const r=await jbReq('POST','/b',p);id=r.metadata.id;localStorage.setItem(JB_BIN_KEY,id);}else{await jbReq('PUT','/b/'+id,p);}setSyncStatus('synced','已同步 ✓');}catch(e){setSyncStatus('error','同步失败');}}
 async function loadFromCloud(){const id=localStorage.getItem(JB_BIN_KEY);if(!id){setSyncStatus('synced','本地运行中');return;}setSyncStatus('syncing','加载中…');try{const r=await jbReq('GET','/b/'+id+'/latest');const d=r.record;if(d.history)lsSaveHistory(d.history);if(d.weekly)localStorage.setItem('gvt_weekly',JSON.stringify(d.weekly));if(d.debts)lsSaveDebts(d.debts);if(d.vaultRepay)saveVaultRepayments(d.vaultRepay);setSyncStatus('synced','云端已连接');updateVaultDisplay();renderChart();applyWeeklyLimitUI();renderDebtCard();restoreSettledStateAfterSync();}catch(e){setSyncStatus('error','加载失败，使用本地');}}
 // ─── HISTORY STORAGE ──────────────────────────────────────────────────────────
 const STORAGE_KEY = 'gvt_history';
