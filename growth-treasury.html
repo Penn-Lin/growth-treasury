@@ -2130,6 +2130,17 @@ function renderDebtCard(){
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
+// ─── URL PARAM INIT ───────────────────────────────────────────────────────────
+(function(){
+  const p = new URLSearchParams(location.search);
+  const bid = p.get('bid');
+  if (bid) {
+    localStorage.setItem('gvt_bin_id', bid);
+    // Remove param from URL without reload
+    history.replaceState(null,'', location.pathname);
+  }
+})();
+
 init();
 
 // Update minus button state initially
