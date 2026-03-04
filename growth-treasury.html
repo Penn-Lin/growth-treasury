@@ -39,7 +39,7 @@
     background: var(--bg);
     color: var(--text);
     min-height: 100vh;
-    padding-bottom: 120px;
+    padding-bottom: 90px;
     font-size: 15px;
   }
 
@@ -511,6 +511,58 @@
     margin-top: 4px;
   }
   .vault-debt-badge.has-debt { display: inline-flex; }
+
+  /* ─── SETTLED STATE ─── */
+  .app-settled .task-item:not(.week-disabled) {
+    pointer-events: none;
+  }
+  .app-settled .toggle-switch {
+    pointer-events: none;
+    opacity: 0.7;
+  }
+  .app-settled .study-controls button {
+    pointer-events: none;
+    opacity: 0.7;
+  }
+  .app-settled #downgradeInput {
+    pointer-events: none;
+    opacity: 0.7;
+  }
+  .settled-bar {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .app-settled .settle-btn-wrap { display: none; }
+  .app-settled .settled-bar { display: flex; }
+  .settled-label {
+    text-align: center;
+    font-size: 12px;
+    font-family: "Noto Sans SC", sans-serif;
+    color: var(--text3);
+    letter-spacing: 0.3px;
+    margin-bottom: 6px;
+  }
+  .settled-label strong {
+    color: var(--gold-dark);
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .redo-btn {
+    width: 100%;
+    padding: 13px;
+    background: linear-gradient(135deg, #2C2417, #4A3A25);
+    color: rgba(255,255,255,0.85);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: "Noto Sans SC", sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .redo-btn:active { opacity: 0.85; }
   /* ─── SYNC STATUS ─── */
   .sync-dot {
     display: inline-flex;
@@ -901,8 +953,8 @@
   .settle-bar {
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    padding: 16px 20px max(20px, env(safe-area-inset-bottom));
-    background: rgba(247,244,239,0.92);
+    padding: 10px 16px max(14px, env(safe-area-inset-bottom));
+    background: rgba(247,244,239,0.95);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-top: 1px solid var(--border);
@@ -910,7 +962,6 @@
     max-width: 500px;
     margin: 0 auto;
   }
-  /* Fix for desktop centering */
   @media (min-width: 500px) {
     .settle-bar { left: 50%; transform: translateX(-50%); width: 500px; border-radius: 0; }
   }
@@ -1089,7 +1140,7 @@
   }
 </style>
 </head>
-<body>
+<body id="appRoot">
 
 <!-- ═══════════════════════════════════════ HEADER ═══════════════════════════════════════ -->
 <div class="header">
@@ -1407,8 +1458,16 @@
 
 <!-- ═══════════════════════════════════════ SETTLE BAR ═══════════════════════════════════════ -->
 <div class="settle-bar">
-  <button class="settle-btn" onclick="openModal()">✨ 一键结算今日奖励</button>
-  <button onclick="syncToCloud()" style="margin-top:8px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.7);border-radius:10px;padding:8px 18px;font-size:12px;font-family:'Noto Sans SC',sans-serif;cursor:pointer;width:100%;">☁️ 立即同步到云端</button>
+  <div class="settle-btn-wrap">
+    <button class="settle-btn" onclick="openModal()">✨ 一键结算今日奖励</button>
+  </div>
+  <div class="settled-bar">
+    <div class="settled-label" id="settledLabel">今日已结算 ✓</div>
+    <button class="redo-btn" onclick="redoToday()">📝 重新打卡（覆盖今天）</button>
+  </div>
+  <div style="text-align:center;margin-top:7px;">
+    <button onclick="syncToCloud()" style="background:none;border:none;color:var(--text3);font-size:11px;font-family:'Noto Sans SC',sans-serif;cursor:pointer;padding:2px 8px;letter-spacing:0.3px;">☁️ 同步到云端</button>
+  </div>
 </div>
 
 <!-- ═══════════════════════════════════════ MODAL ═══════════════════════════════════════ -->
@@ -1477,7 +1536,7 @@ const JB_BIN_KEY='gvt_bin_id';
 function setSyncStatus(st,tx){const d=document.getElementById('syncDot'),t=document.getElementById('syncText');if(!d)return;d.className='sync-dot '+st;t.textContent=tx;}
 async function jbReq(m,p,b){const o={method:m,headers:{'X-Master-Key':JB_KEY,'Content-Type':'application/json','X-Bin-Versioning':'false'}};if(b!==undefined)o.body=JSON.stringify(b);const r=await fetch('https://api.jsonbin.io/v3'+p,o);if(!r.ok)throw new Error(r.status);return r.json();}
 async function syncToCloud(){setSyncStatus('syncing','同步中…');try{const p={history:loadHistory(),weekly:JSON.parse(localStorage.getItem('gvt_weekly')||'{}'),debts:loadDebts()};let id=localStorage.getItem(JB_BIN_KEY);if(!id){const r=await jbReq('POST','/b',p);id=r.metadata.id;localStorage.setItem(JB_BIN_KEY,id);}else{await jbReq('PUT','/b/'+id,p);}setSyncStatus('synced','已同步 ✓');}catch(e){setSyncStatus('error','同步失败');}}
-async function loadFromCloud(){const id=localStorage.getItem(JB_BIN_KEY);if(!id){setSyncStatus('synced','本地运行中');return;}setSyncStatus('syncing','加载中…');try{const r=await jbReq('GET','/b/'+id+'/latest');const d=r.record;if(d.history)lsSaveHistory(d.history);if(d.weekly)localStorage.setItem('gvt_weekly',JSON.stringify(d.weekly));if(d.debts)lsSaveDebts(d.debts);setSyncStatus('synced','云端已连接');updateVaultDisplay();renderChart();applyWeeklyLimitUI();renderDebtCard();}catch(e){setSyncStatus('error','加载失败，使用本地');}}
+async function loadFromCloud(){const id=localStorage.getItem(JB_BIN_KEY);if(!id){setSyncStatus('synced','本地运行中');return;}setSyncStatus('syncing','加载中…');try{const r=await jbReq('GET','/b/'+id+'/latest');const d=r.record;if(d.history)lsSaveHistory(d.history);if(d.weekly)localStorage.setItem('gvt_weekly',JSON.stringify(d.weekly));if(d.debts)lsSaveDebts(d.debts);setSyncStatus('synced','云端已连接');updateVaultDisplay();renderChart();applyWeeklyLimitUI();renderDebtCard();restoreSettledStateAfterSync();}catch(e){setSyncStatus('error','加载失败，使用本地');}}
 // ─── HISTORY STORAGE ──────────────────────────────────────────────────────────
 const STORAGE_KEY = 'gvt_history';
 
@@ -1685,12 +1744,61 @@ function init() {
   const days = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
   document.getElementById('dateDisplay').textContent =
     `${now.getMonth()+1}月${now.getDate()}日 ${days[now.getDay()]}`;
-  recalculate();
+
+  // Check if today already settled - restore settled state
+  const today = getTodayStr();
+  const todayRec = loadHistory().find(r => r.date === today);
+  if (todayRec && todayRec.weeklyRecorded) {
+    // Restore snapshot to UI
+    if (todayRec.snapshot) restoreSnapshot(todayRec.snapshot);
+    recalculate();
+    document.getElementById('appRoot').classList.add('app-settled');
+    const label = document.getElementById('settledLabel');
+    if (label) label.innerHTML = '今日已结算 ✓ &nbsp;<strong>¥' + todayRec.amount.toFixed(2) + '</strong>';
+  } else {
+    recalculate();
+  }
+
   applyWeeklyLimitUI();
   updateVaultDisplay();
   renderChart();
   loadFromCloud();
   renderDebtCard();
+}
+
+function restoreSnapshot(snap) {
+  // Restore task checkboxes
+  document.querySelectorAll('.task-item[data-key]').forEach(el => {
+    const key = el.dataset.key;
+    if (snap.tasks && snap.tasks[key]) {
+      el.classList.add('checked');
+      state.tasks[key] = true;
+    }
+  });
+  // Restore study
+  state.study = snap.study || 0;
+  document.getElementById('studyVal').textContent = state.study;
+  // Restore toggles
+  ['low','flow','reconcile'].forEach(k => {
+    if (!snap[k]) return;
+    state[k] = true;
+    const el = document.getElementById('toggle' + capitalize(k));
+    if (el) {
+      if (k === 'flow') el.classList.add('flow-on');
+      else el.classList.add('on');
+    }
+    const valEl = document.getElementById('val' + capitalize(k));
+    if (valEl) valEl.classList.add('active');
+  });
+  if (snap.reconcile) {
+    const note = document.getElementById('reconcileNote');
+    if (note) note.style.display = 'block';
+  }
+  // Restore downgrade
+  if (snap.downgrade) {
+    state.downgrade = snap.downgrade;
+    document.getElementById('downgradeInput').value = snap.downgrade;
+  }
 }
 
 // ─── TOGGLE TASK ──────────────────────────────────────────────────────────────
@@ -1879,7 +1987,42 @@ function closeModalOutside(e) {
 function resetAndClose() {
   recordWeeklyOnSettle();
   closeModal();
-  setTimeout(resetAll, 300);
+  setTimeout(enterSettledState, 300);
+}
+
+function enterSettledState() {
+  // Restore today snapshot to UI (keep checkboxes as-is, they reflect what was settled)
+  document.getElementById('appRoot').classList.add('app-settled');
+  // Update settled label with amount
+  const label = document.getElementById('settledLabel');
+  if (label) label.innerHTML = '今日已结算 ✓ &nbsp;<strong>¥' + lastTotal.toFixed(2) + '</strong>';
+}
+
+function restoreSettledStateAfterSync() {
+  const today = getTodayStr();
+  const todayRec = loadHistory().find(r => r.date === today);
+  if (todayRec && todayRec.weeklyRecorded) {
+    if (todayRec.snapshot && !document.getElementById('appRoot').classList.contains('app-settled')) {
+      restoreSnapshot(todayRec.snapshot);
+      recalculate();
+    }
+    document.getElementById('appRoot').classList.add('app-settled');
+    const label = document.getElementById('settledLabel');
+    if (label) label.innerHTML = '今日已结算 ✓ &nbsp;<strong>¥' + todayRec.amount.toFixed(2) + '</strong>';
+  }
+}
+
+function redoToday() {
+  // Unlock for re-entry - clear settled flag from today record
+  const today = getTodayStr();
+  const history = loadHistory();
+  const idx = history.findIndex(r => r.date === today);
+  if (idx >= 0) {
+    history[idx].weeklyRecorded = false;
+  }
+  saveHistory(history);
+  document.getElementById('appRoot').classList.remove('app-settled');
+  resetAll();
 }
 
 function resetAll() {
