@@ -1784,7 +1784,7 @@ function init() {
     recalculate();
     document.getElementById('appRoot').classList.add('app-settled');
     const label = document.getElementById('settledLabel');
-    if (label) label.innerHTML = '今日已结算 ✓ &nbsp;<strong>¥' + todayRec.amount.toFixed(2) + '</strong>';
+    if (label) label.innerHTML = '今日已结算 ✓ &nbsp;<strong>¥' + (todayRec.totalEarned ?? todayRec.amount).toFixed(2) + '</strong>';
   } else {
     recalculate();
   }
@@ -1998,6 +1998,7 @@ function recordWeeklyOnSettle() {
   if (idx >= 0) {
     history[idx].weeklyRecorded = true;
     history[idx].debtRepaid = Math.round((lastTotal - vaultAmount) * 100) / 100;
+    history[idx].totalEarned = lastTotal;
   }
   saveHistory(history);
   updateVaultDisplay();
@@ -2038,7 +2039,7 @@ function restoreSettledStateAfterSync() {
     }
     document.getElementById('appRoot').classList.add('app-settled');
     const label = document.getElementById('settledLabel');
-    if (label) label.innerHTML = '今日已结算 ✓ &nbsp;<strong>¥' + todayRec.amount.toFixed(2) + '</strong>';
+    if (label) label.innerHTML = '今日已结算 ✓ &nbsp;<strong>¥' + (todayRec.totalEarned ?? todayRec.amount).toFixed(2) + '</strong>';
   }
 }
 
