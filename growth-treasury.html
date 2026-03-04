@@ -1659,14 +1659,100 @@ const JB_KEY='$2a$10$T/foAH5VDzXBEKqfLxX99./8tXjJfUKyqwZm/PYEKY.NRU162WC8C';
 const JB_BIN_KEY='gvt_bin_id';
 function setSyncStatus(st,tx){const d=document.getElementById('syncDot'),t=document.getElementById('syncText');if(!d)return;d.className='sync-dot '+st;t.textContent=tx;}
 async function jbReq(m,p,b){const o={method:m,headers:{'X-Master-Key':JB_KEY,'Content-Type':'application/json','X-Bin-Versioning':'false'}};if(b!==undefined)o.body=JSON.stringify(b);const r=await fetch('https://api.jsonbin.io/v3'+p,o);if(!r.ok)throw new Error(r.status);return r.json();}
-async function syncToCloud(){
-  // Guard: never overwrite cloud with empty history
+async function getLocalTimestamp() {
+  return parseInt(localStorage.getItem('gvt_ts') || '0');
+}
+function setLocalTimestamp(ts) {
+  localStorage.setItem('gvt_ts', ts || Date.now());
+}
+function buildPayload() {
+  return {
+    history: loadHistory(),
+    weekly: JSON.parse(localStorage.getItem('gvt_weekly') || '{}'),
+    debts: loadDebts(),
+    vaultRepay: loadVaultRepayments(),
+    ts: getLocalTimestamp(),
+  };
+}
+function applyCloudData(d) {
+  if (d.history) lsSaveHistory(d.history);
+  if (d.weekly) localStorage.setItem('gvt_weekly', JSON.stringify(d.weekly));
+  if (d.debts) lsSaveDebts(d.debts);
+  if (d.vaultRepay) saveVaultRepayments(d.vaultRepay);
+  if (d.ts) setLocalTimestamp(d.ts);
+}
+
+async function syncToCloud() {
   const history = loadHistory();
+  // Never push empty data
   if (history.length === 0) {
     setSyncStatus('synced', '无数据可同步');
     return;
   }
-  setSyncStatus('syncing','同步中…');try{const p={history:history,weekly:JSON.parse(localStorage.getItem('gvt_weekly')||'{}'),debts:loadDebts(),vaultRepay:loadVaultRepayments()};let id=localStorage.getItem(JB_BIN_KEY);if(!id){const r=await jbReq('POST','/b',p);id=r.metadata.id;localStorage.setItem(JB_BIN_KEY,id);}else{await jbReq('PUT','/b/'+id,p);}setSyncStatus('synced','已同步 ✓');}catch(e){setSyncStatus('error','同步失败');}}
+  setSyncStatus('syncing', '同步中…');
+  try {
+    let id = localStorage.getItem(JB_BIN_KEY);
+    if (!id) {
+      // First time: create bin
+      const payload = buildPayload();
+      setLocalTimestamp(Date.now());
+      payload.ts = getLocalTimestamp();
+      const r = await jbReq('POST', '/b', payload);
+      id = r.metadata.id;
+      localStorage.setItem(JB_BIN_KEY, id);
+      setSyncStatus('synced', '已同步 ✓');
+      return;
+    }
+    // Compare timestamps before pushing
+    const remote = await jbReq('GET', '/b/' + id + '/latest');
+    const cloudTs = remote.record.ts || 0;
+    const localTs = getLocalTimestamp();
+    if (cloudTs > localTs && remote.record.history && remote.record.history.length > 0) {
+      // Cloud is newer - pull instead of push
+      applyCloudData(remote.record);
+      updateVaultDisplay(); renderChart(); applyWeeklyLimitUI(); renderDebtCard(); restoreSettledStateAfterSync();
+      setSyncStatus('synced', '已从云端更新 ↓');
+    } else {
+      // Local is newer or equal - push
+      const payload = buildPayload();
+      await jbReq('PUT', '/b/' + id, payload);
+      setSyncStatus('synced', '已同步 ✓');
+    }
+  } catch(e) { setSyncStatus('error', '同步失败'); }
+}
+
+async function loadFromCloud() {
+  const id = localStorage.getItem(JB_BIN_KEY);
+  if (!id) { setSyncStatus('synced', '本地运行中'); return; }
+  setSyncStatus('syncing', '加载中…');
+  try {
+    const r = await jbReq('GET', '/b/' + id + '/latest');
+    const d = r.record;
+    const cloudTs = d.ts || 0;
+    const localTs = getLocalTimestamp();
+    const localHistory = loadHistory();
+    // Use cloud data if: cloud is newer, OR local is empty
+    if (cloudTs >= localTs || localHistory.length === 0) {
+      if (d.history && d.history.length > 0) {
+        applyCloudData(d);
+        setSyncStatus('synced', '云端已连接');
+        updateVaultDisplay(); renderChart(); applyWeeklyLimitUI(); renderDebtCard(); restoreSettledStateAfterSync();
+      } else if (localHistory.length > 0) {
+        // Cloud is empty but local has data - push local up
+        setSyncStatus('syncing', '恢复云端中…');
+        const payload = buildPayload();
+        await jbReq('PUT', '/b/' + id, payload);
+        setSyncStatus('synced', '本地数据已恢复到云端 ✓');
+      } else {
+        setSyncStatus('synced', '云端已连接');
+      }
+    } else {
+      // Local is newer - just show connected, will push on next settle
+      setSyncStatus('synced', '云端已连接');
+    }
+  } catch(e) { setSyncStatus('error', '加载失败，使用本地'); }
+}
+
 async function loadFromCloud(){const id=localStorage.getItem(JB_BIN_KEY);if(!id){setSyncStatus('synced','本地运行中');return;}setSyncStatus('syncing','加载中…');try{const r=await jbReq('GET','/b/'+id+'/latest');const d=r.record;if(d.history)lsSaveHistory(d.history);if(d.weekly)localStorage.setItem('gvt_weekly',JSON.stringify(d.weekly));if(d.debts)lsSaveDebts(d.debts);if(d.vaultRepay)saveVaultRepayments(d.vaultRepay);setSyncStatus('synced','云端已连接');updateVaultDisplay();renderChart();applyWeeklyLimitUI();renderDebtCard();restoreSettledStateAfterSync();}catch(e){setSyncStatus('error','加载失败，使用本地');}}
 // ─── HISTORY STORAGE ──────────────────────────────────────────────────────────
 const STORAGE_KEY = 'gvt_history';
@@ -2110,6 +2196,7 @@ function recordWeeklyOnSettle() {
     history[idx].totalEarned = lastTotal;
   }
   saveHistory(history);
+  setLocalTimestamp(Date.now());
   updateVaultDisplay();
   renderChart();
   renderDebtCard();
@@ -2393,7 +2480,7 @@ function confirmAddDebt(){
   if(!amount||amount<=0){document.getElementById("debtAmountInput").focus();return;}
   const debts=loadDebts();
   debts.push({id:Date.now(),amount:Math.round(amount*100)/100,remaining:Math.round(amount*100)/100,note:note||"未填写备注",date:getTodayStr(),status:"active"});
-  lsSaveDebts(debts);closeDebtModal();renderDebtCard();updateVaultDisplay();syncToCloud();
+  lsSaveDebts(debts);setLocalTimestamp(Date.now());closeDebtModal();renderDebtCard();updateVaultDisplay();syncToCloud();
 }
 function renderDebtCard(){
   const debts=loadDebts();
@@ -2473,6 +2560,7 @@ function confirmRepayFromVault(){
   const debt=debts.find(d=>d.id===_repayDebtId);
   if(debt){debt.remaining=Math.round((debt.remaining-amount)*100)/100;if(debt.remaining<=0){debt.remaining=0;debt.status='paid';}}
   lsSaveDebts(debts);
+  setLocalTimestamp(Date.now());
   closeRepayModal();
   updateVaultDisplay();
   renderDebtCard();
