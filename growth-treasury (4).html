@@ -1,0 +1,2156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>个人成长金库结算器</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F7F4EF;
+    --bg2: #EFEBE3;
+    --card: #FFFFFF;
+    --border: #E8E0D4;
+    --text: #2C2417;
+    --text2: #7A6E60;
+    --text3: #A89E90;
+    --gold: #C8972A;
+    --gold-light: #F5E9C9;
+    --gold-dark: #9A6F18;
+    --green: #4A8C6F;
+    --green-light: #D4EDDE;
+    --orange: #C46B2A;
+    --orange-light: #FAEADB;
+    --red: #C44B4B;
+    --red-light: #FAE0E0;
+    --blue: #3A6EA8;
+    --shadow: 0 2px 16px rgba(44,36,23,0.08);
+    --shadow-lg: 0 8px 40px rgba(44,36,23,0.14);
+    --radius: 18px;
+    --radius-sm: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 120px;
+    font-size: 15px;
+  }
+
+  /* ─── HEADER ─── */
+  .header {
+    background: linear-gradient(160deg, #2C2417 0%, #4A3A25 100%);
+    padding: 52px 24px 36px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -40px;
+    width: 220px; height: 220px;
+    background: radial-gradient(circle, rgba(200,151,42,0.18) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: -50px; left: -30px;
+    width: 160px; height: 160px;
+    background: radial-gradient(circle, rgba(200,151,42,0.10) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    position: relative; z-index: 1;
+  }
+  .app-title {
+    font-family: 'Playfair Display', serif;
+    color: var(--gold);
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .date-display {
+    color: rgba(255,255,255,0.55);
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    text-align: right;
+  }
+  .earnings-display {
+    position: relative; z-index: 1;
+    margin-bottom: 28px;
+  }
+  .earnings-label {
+    color: rgba(255,255,255,0.45);
+    font-size: 12px;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+    font-weight: 300;
+  }
+  .earnings-amount {
+    font-family: 'Playfair Display', serif;
+    color: #FFFFFF;
+    font-size: 52px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -1px;
+    transition: all 0.3s cubic-bezier(.34,1.56,.64,1);
+  }
+  .earnings-amount .currency {
+    font-size: 28px;
+    vertical-align: super;
+    font-weight: 400;
+    color: var(--gold);
+  }
+  .earnings-amount.bump {
+    transform: scale(1.06);
+    color: var(--gold);
+  }
+
+  /* ─── PROGRESS BAR ─── */
+  .progress-wrap {
+    position: relative; z-index: 1;
+  }
+  .progress-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .progress-label {
+    color: rgba(255,255,255,0.45);
+    font-size: 11px;
+    letter-spacing: 0.5px;
+  }
+  .progress-value {
+    color: rgba(255,255,255,0.6);
+    font-size: 11px;
+  }
+  .progress-track {
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 0.5s cubic-bezier(.34,1.56,.64,1), background 0.4s;
+    background: linear-gradient(90deg, var(--gold-dark), var(--gold));
+    position: relative;
+  }
+  .progress-fill.capped {
+    background: linear-gradient(90deg, #4A8C6F, #6BBF94);
+  }
+  .progress-fill.flow {
+    background: linear-gradient(90deg, #3A6EA8, #6AAEDD);
+  }
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0;
+    width: 10px; height: 100%;
+    background: rgba(255,255,255,0.5);
+    border-radius: 99px;
+    animation: shimmer 1.5s ease infinite;
+  }
+  @keyframes shimmer { 0%,100%{opacity:0.4} 50%{opacity:1} }
+
+  .flow-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(58,110,168,0.2);
+    border: 1px solid rgba(58,110,168,0.4);
+    border-radius: 99px;
+    padding: 2px 10px;
+    color: #6AAEDD;
+    font-size: 11px;
+    margin-top: 8px;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: all 0.3s;
+  }
+  .flow-badge.visible { opacity: 1; transform: translateY(0); }
+
+  /* ─── MAIN CONTENT ─── */
+  .main { padding: 20px 16px 0; max-width: 500px; margin: 0 auto; }
+
+  /* ─── SECTION CARD ─── */
+  .section-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid var(--bg2);
+  }
+  .section-icon {
+    width: 30px; height: 30px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+  .section-icon.amber { background: #FEF3DC; }
+  .section-icon.blue  { background: #DCE8F8; }
+  .section-icon.purple{ background: #EDE8FA; }
+  .section-icon.teal  { background: #D9F0E9; }
+  .section-icon.orange{ background: #FAEADB; }
+  .section-title { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: 0.3px; }
+  .section-sub   { font-size: 11px; color: var(--text3); margin-top: 1px; }
+
+  /* ─── TASK ITEM ─── */
+  .task-item {
+    display: flex;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--bg);
+    cursor: pointer;
+    transition: background 0.15s;
+    user-select: none;
+    -webkit-user-select: none;
+    position: relative;
+  }
+  .task-item:last-child { border-bottom: none; }
+  .task-item:active { background: var(--bg); }
+  .task-item.checked { background: linear-gradient(90deg, rgba(200,151,42,0.04), transparent); }
+
+  .task-checkbox {
+    width: 22px; height: 22px;
+    border: 2px solid var(--border);
+    border-radius: 7px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s cubic-bezier(.34,1.56,.64,1);
+    background: var(--card);
+  }
+  .task-item.checked .task-checkbox {
+    background: var(--gold);
+    border-color: var(--gold);
+  }
+  .task-checkbox svg { opacity: 0; transition: opacity 0.15s; }
+  .task-item.checked .task-checkbox svg { opacity: 1; }
+
+  .task-text {
+    flex: 1;
+    padding: 0 12px;
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.4;
+    transition: color 0.2s;
+  }
+  .task-item.checked .task-text { color: var(--text2); }
+
+  .task-value {
+    display: flex;
+    align-items: baseline;
+    gap: 1px;
+    white-space: nowrap;
+  }
+  .task-value .v-prefix {
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'Noto Sans SC', sans-serif;
+    color: var(--text3);
+    transition: color 0.2s;
+    margin-right: 1px;
+    align-self: center;
+  }
+  .task-value .v-cur {
+    font-size: 13px;
+    font-weight: 400;
+    font-family: 'Noto Sans SC', sans-serif;
+    color: var(--text3);
+    transition: color 0.2s;
+    align-self: center;
+    margin-bottom: 1px;
+  }
+  .task-value .v-num {
+    font-size: 22px;
+    font-weight: 600;
+    font-family: 'Playfair Display', serif;
+    color: var(--text3);
+    transition: color 0.2s;
+    line-height: 1;
+    letter-spacing: -0.5px;
+  }
+  .task-item.checked .task-value .v-prefix,
+  .task-item.checked .task-value .v-cur,
+  .task-item.checked .task-value .v-num { color: var(--gold); }
+
+
+  .task-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 500;
+    background: var(--gold-light);
+    color: var(--gold-dark);
+    border-radius: 4px;
+    padding: 1px 5px;
+    margin-left: 6px;
+    vertical-align: middle;
+    letter-spacing: 0;
+  }
+
+  /* ─── WEEKLY LIMIT ─── */
+  .task-item.week-disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    pointer-events: none;
+    background: var(--bg);
+  }
+  .week-disabled .week-undo {
+    pointer-events: all;
+    cursor: pointer;
+    opacity: 1;
+  }
+  .task-item.week-disabled .task-checkbox {
+    background: var(--bg2);
+    border-color: var(--border);
+  }
+  .week-undo {
+    display: none;
+    margin-left: 6px;
+    font-size: 10px;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 500;
+    background: rgba(196,75,75,0.1);
+    color: var(--red);
+    border: 1px solid rgba(196,75,75,0.25);
+    border-radius: 5px;
+    padding: 2px 7px;
+    cursor: pointer;
+    vertical-align: middle;
+    transition: background 0.2s;
+  }
+  .week-undo:active { background: rgba(196,75,75,0.2); }
+  .week-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 500;
+    font-family: 'Noto Sans SC', sans-serif;
+    background: var(--bg2);
+    color: var(--text3);
+    border-radius: 5px;
+    padding: 2px 6px;
+    margin-left: 6px;
+    white-space: nowrap;
+    vertical-align: middle;
+    letter-spacing: 0;
+    transition: background 0.2s, color 0.2s;
+  }
+  .week-badge.exhausted {
+    background: rgba(196,75,75,0.10);
+    color: var(--red);
+  }
+  .week-badge.available {
+    background: rgba(74,140,111,0.12);
+    color: var(--green);
+  }
+
+
+  /* ─── DEBT SYSTEM ─── */
+  .debt-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    animation: fadeUp 0.4s ease both;
+  }
+  .debt-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid var(--bg2);
+  }
+  .debt-header-left { display: flex; align-items: center; gap: 10px; }
+  .add-debt-btn {
+    background: var(--gold-light); color: var(--gold-dark);
+    border: none; border-radius: 8px;
+    font-size: 12px; font-family: "Noto Sans SC",sans-serif; font-weight: 500;
+    padding: 6px 12px; cursor: pointer; transition: background 0.2s;
+  }
+  .add-debt-btn:active { background: #EDD98A; }
+  .debt-list { padding: 8px 0; }
+  .debt-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--bg2);
+    transition: opacity 0.3s;
+  }
+  .debt-item:last-child { border-bottom: none; }
+  .debt-item.paid { opacity: 0.45; }
+  .debt-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    background: var(--orange);
+  }
+  .debt-item.paid .debt-dot { background: var(--green); }
+  .debt-body { flex: 1; min-width: 0; }
+  .debt-note {
+    font-size: 14px; font-weight: 500; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 5px;
+  }
+  .debt-bar-wrap {
+    height: 4px; background: var(--bg2); border-radius: 2px; overflow: hidden;
+    margin-bottom: 4px;
+  }
+  .debt-bar-fill {
+    height: 100%; border-radius: 2px;
+    background: var(--orange); transition: width 0.5s ease;
+  }
+  .debt-item.paid .debt-bar-fill { background: var(--green); }
+  .debt-meta {
+    display: flex; justify-content: space-between;
+    font-size: 11px; color: var(--text3);
+  }
+  .debt-amount-col { text-align: right; flex-shrink: 0; }
+  .debt-remaining {
+    font-family: "Playfair Display",serif;
+    font-size: 17px; font-weight: 600; color: var(--orange); line-height: 1;
+    margin-bottom: 2px;
+  }
+  .debt-item.paid .debt-remaining { color: var(--green); }
+  .debt-remaining-label { font-size: 10px; color: var(--text3); }
+  .debt-empty {
+    text-align: center; padding: 24px 18px;
+    font-size: 13px; color: var(--text3); line-height: 1.8;
+  }
+  .net-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 18px;
+    border-top: 1px solid var(--bg2);
+    background: var(--bg);
+  }
+  .net-label { font-size: 11px; color: var(--text3); letter-spacing: 0.5px; }
+  .net-val {
+    font-family: "Playfair Display",serif;
+    font-size: 18px; font-weight: 700; letter-spacing: -0.5px;
+  }
+  .net-val.positive { color: var(--green); }
+  .net-val.negative { color: var(--red); }
+
+  /* Debt modal */
+  .debt-modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(44,36,23,0.55);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    z-index: 300; display: flex; align-items: flex-end; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.25s;
+  }
+  .debt-modal-overlay.open { opacity: 1; pointer-events: all; }
+  .debt-modal {
+    background: var(--card); border-radius: var(--radius) var(--radius) 0 0;
+    padding: 28px 24px max(28px, env(safe-area-inset-bottom));
+    width: 100%; max-width: 500px;
+    transform: translateY(100%); transition: transform 0.35s cubic-bezier(.34,1.56,.64,1);
+  }
+  .debt-modal-overlay.open .debt-modal { transform: translateY(0); }
+  .debt-modal-title {
+    font-family: "Playfair Display",serif;
+    font-size: 20px; font-weight: 700; color: var(--text);
+    margin-bottom: 20px;
+  }
+  .debt-field { margin-bottom: 16px; }
+  .debt-field label {
+    display: block; font-size: 11px; font-weight: 500;
+    color: var(--text3); letter-spacing: 0.5px; margin-bottom: 6px;
+  }
+  .debt-field input {
+    width: 100%; border: 1.5px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+    font-size: 15px; font-family: "Noto Sans SC",sans-serif;
+    color: var(--text); background: var(--bg); outline: none;
+    transition: border-color 0.2s;
+  }
+  .debt-field input:focus { border-color: var(--gold); }
+  .debt-confirm-btn {
+    width: 100%; padding: 14px; border: none; border-radius: 12px;
+    background: linear-gradient(135deg,#C8972A,#E8B84B);
+    color: #fff; font-size: 15px; font-family: "Noto Sans SC",sans-serif;
+    font-weight: 600; cursor: pointer; margin-top: 4px;
+  }
+  .debt-cancel-btn {
+    width: 100%; padding: 10px; border: none; border-radius: 12px;
+    background: transparent; color: var(--text3);
+    font-size: 14px; font-family: "Noto Sans SC",sans-serif;
+    cursor: pointer; margin-top: 8px;
+  }
+
+  /* Header debt badge */
+  .vault-debt-badge {
+    display: none; align-items: center; gap: 5px;
+    background: rgba(196,107,42,0.15);
+    border: 1px solid rgba(196,107,42,0.3);
+    border-radius: 7px; padding: 3px 8px;
+    font-size: 11px; color: var(--orange);
+    font-family: "Noto Sans SC",sans-serif;
+    margin-top: 4px;
+  }
+  .vault-debt-badge.has-debt { display: inline-flex; }
+  /* ─── SYNC STATUS ─── */
+  .sync-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.5px;
+    margin-top: 6px;
+    position: relative; z-index: 1;
+    transition: color 0.3s;
+  }
+  .sync-dot .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    transition: background 0.3s;
+    flex-shrink: 0;
+  }
+  .sync-dot.syncing .dot { background: #F5C842; animation: pulse 1s infinite; }
+  .sync-dot.synced  .dot { background: #6BBF94; }
+  .sync-dot.synced  { color: rgba(255,255,255,0.5); }
+  .sync-dot.error   .dot { background: #E57373; }
+  .sync-dot.offline .dot { background: rgba(255,255,255,0.2); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+
+  /* ─── VAULT TOTAL ─── */
+  .vault-total-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    position: relative; z-index: 1;
+  }
+  .vault-icon {
+    width: 32px; height: 32px;
+    background: rgba(200,151,42,0.15);
+    border: 1px solid rgba(200,151,42,0.3);
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .vault-info { flex: 1; }
+  .vault-label {
+    color: rgba(255,255,255,0.4);
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 1px;
+  }
+  .vault-amount {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+  }
+  .vault-cur {
+    font-size: 13px;
+    color: var(--gold);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 400;
+  }
+  .vault-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.5px;
+    transition: all 0.4s cubic-bezier(.34,1.56,.64,1);
+  }
+  .vault-sep {
+    width: 1px;
+    height: 32px;
+    background: rgba(255,255,255,0.1);
+    flex-shrink: 0;
+  }
+  .vault-streak {
+    text-align: right;
+  }
+  .vault-streak-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--gold);
+    line-height: 1;
+  }
+  .vault-streak-label {
+    font-size: 10px;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+  }
+
+  /* ─── STATS CARD ─── */
+  .stats-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    animation: fadeUp 0.4s ease both;
+    animation-delay: 0.0s;
+  }
+  .stats-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid var(--bg2);
+  }
+  .stats-header-left {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .stats-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 3px;
+  }
+  .stats-tab {
+    padding: 4px 12px;
+    font-size: 12px;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 500;
+    color: var(--text3);
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .stats-tab.active {
+    background: var(--card);
+    color: var(--text);
+    box-shadow: 0 1px 4px rgba(44,36,23,0.1);
+  }
+  .chart-wrap {
+    padding: 16px 12px 8px;
+    height: 180px;
+    position: relative;
+  }
+  .stats-summary {
+    display: flex;
+    padding: 12px 18px 16px;
+    gap: 0;
+    border-top: 1px solid var(--bg2);
+  }
+  .stats-stat {
+    flex: 1;
+    text-align: center;
+  }
+  .stats-stat + .stats-stat {
+    border-left: 1px solid var(--bg2);
+  }
+  .stats-stat-val {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.5px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .stats-stat-val .s-cur {
+    font-size: 12px;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 400;
+    color: var(--text3);
+  }
+  .stats-stat-label {
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 0.3px;
+  }
+  .no-data-msg {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text3);
+    font-size: 13px;
+    gap: 6px;
+  }
+  .no-data-msg .nd-icon { font-size: 28px; opacity: 0.4; }
+
+  /* ─── COUNTER ITEM ─── */
+  .counter-item {
+    display: flex;
+    align-items: center;
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--bg);
+  }
+  .counter-item:last-child { border-bottom: none; }
+  .counter-info { flex: 1; padding-right: 12px; }
+  .counter-name { font-size: 14px; color: var(--text); line-height: 1.4; }
+  .counter-rate { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .counter-controls {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 2px;
+  }
+  .counter-btn {
+    width: 32px; height: 32px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    color: var(--text2);
+    transition: all 0.15s;
+    font-weight: 300;
+  }
+  .counter-btn:active { background: var(--border); transform: scale(0.92); }
+  .counter-btn:disabled { color: var(--border); cursor: default; }
+  .counter-val {
+    width: 36px;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    font-family: 'Playfair Display', serif;
+  }
+  .counter-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 1px;
+    min-width: 52px;
+    transition: color 0.2s;
+  }
+  .counter-total .v-cur {
+    font-size: 13px;
+    font-weight: 400;
+    font-family: 'Noto Sans SC', sans-serif;
+    color: var(--text3);
+    transition: color 0.2s;
+    align-self: center;
+    margin-bottom: 1px;
+  }
+  .counter-total .v-num {
+    font-size: 22px;
+    font-weight: 600;
+    font-family: 'Playfair Display', serif;
+    color: var(--text3);
+    transition: color 0.2s;
+    line-height: 1;
+    letter-spacing: -0.5px;
+  }
+  .counter-total.active .v-cur,
+  .counter-total.active .v-num { color: var(--gold); }
+
+  /* ─── TOGGLE ITEM ─── */
+  .toggle-item {
+    display: flex;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--bg);
+  }
+  .toggle-item:last-child { border-bottom: none; }
+  .toggle-info { flex: 1; padding-right: 12px; }
+  .toggle-name { font-size: 14px; color: var(--text); line-height: 1.4; }
+  .toggle-desc { font-size: 11px; color: var(--text3); margin-top: 2px; line-height: 1.5; }
+  .toggle-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .toggle-value {
+    display: flex;
+    align-items: baseline;
+    gap: 1px;
+  }
+  .toggle-value .v-prefix,
+  .toggle-value .v-cur {
+    font-size: 13px;
+    font-weight: 400;
+    font-family: 'Noto Sans SC', sans-serif;
+    color: var(--text3);
+    transition: color 0.2s;
+    align-self: center;
+    margin-bottom: 1px;
+  }
+  .toggle-value .v-prefix { margin-right: 1px; font-weight: 500; }
+  .toggle-value .v-num {
+    font-size: 22px;
+    font-weight: 600;
+    font-family: 'Playfair Display', serif;
+    color: var(--text3);
+    transition: color 0.2s;
+    line-height: 1;
+    letter-spacing: -0.5px;
+  }
+  .toggle-value.text-only {
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'Noto Sans SC', sans-serif;
+    color: var(--text3);
+    transition: color 0.2s;
+    display: block;
+  }
+  .toggle-value.active .v-prefix,
+  .toggle-value.active .v-cur,
+  .toggle-value.active .v-num,
+  .toggle-value.active.text-only { color: var(--gold); }
+
+  /* iOS-style toggle */
+  .toggle-switch {
+    width: 46px; height: 26px;
+    background: var(--border);
+    border-radius: 99px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.25s;
+    flex-shrink: 0;
+  }
+  .toggle-switch::after {
+    content: '';
+    position: absolute;
+    left: 3px; top: 3px;
+    width: 20px; height: 20px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    transition: transform 0.25s cubic-bezier(.34,1.56,.64,1);
+  }
+  .toggle-switch.on { background: var(--gold); }
+  .toggle-switch.on::after { transform: translateX(20px); }
+  .toggle-switch.flow-on { background: var(--blue); }
+  .toggle-switch.flow-on::after { transform: translateX(20px); }
+
+  /* ─── INPUT ITEM ─── */
+  .input-item {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .input-emoji { font-size: 20px; flex-shrink: 0; }
+  .input-info { flex: 1; }
+  .input-name { font-size: 14px; color: var(--text); margin-bottom: 4px; }
+  .input-desc { font-size: 11px; color: var(--text3); line-height: 1.5; }
+  .input-field-wrap {
+    display: flex;
+    align-items: center;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 6px 12px;
+    gap: 4px;
+    transition: border-color 0.2s;
+    flex-shrink: 0;
+    width: 100px;
+  }
+  .input-field-wrap:focus-within { border-color: var(--gold); }
+  .input-field-currency { font-size: 13px; color: var(--text3); font-family: 'Playfair Display'; }
+  .input-field {
+    width: 60px;
+    border: none;
+    background: transparent;
+    font-size: 16px;
+    font-family: 'Playfair Display', serif;
+    color: var(--text);
+    font-weight: 600;
+    outline: none;
+    text-align: right;
+  }
+  .input-field::placeholder { color: var(--border); }
+
+  /* ─── INFO BOX ─── */
+  .info-box {
+    background: var(--gold-light);
+    border: 1px solid rgba(200,151,42,0.2);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    margin: 0 16px 14px;
+    font-size: 12px;
+    color: var(--gold-dark);
+    line-height: 1.7;
+  }
+  .info-box strong { font-weight: 600; }
+
+  /* ─── SETTLE BUTTON ─── */
+  .settle-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    padding: 16px 20px max(20px, env(safe-area-inset-bottom));
+    background: rgba(247,244,239,0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    z-index: 100;
+    max-width: 500px;
+    margin: 0 auto;
+  }
+  /* Fix for desktop centering */
+  @media (min-width: 500px) {
+    .settle-bar { left: 50%; transform: translateX(-50%); width: 500px; border-radius: 0; }
+  }
+
+  .settle-btn {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, #2C2417, #4A3A25);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 4px 20px rgba(44,36,23,0.3);
+  }
+  .settle-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(200,151,42,0.0), rgba(200,151,42,0.15));
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .settle-btn:hover::before { opacity: 1; }
+  .settle-btn:active { transform: scale(0.98); box-shadow: 0 2px 10px rgba(44,36,23,0.2); }
+
+  /* ─── MODAL ─── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(44,36,23,0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 200;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--card);
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding: 32px 24px max(32px, env(safe-area-inset-bottom));
+    width: 100%;
+    max-width: 500px;
+    transform: translateY(100%);
+    transition: transform 0.4s cubic-bezier(.34,1.56,.64,1);
+    text-align: center;
+  }
+  .modal-overlay.open .modal { transform: translateY(0); }
+
+  .modal-icon { font-size: 52px; margin-bottom: 16px; line-height: 1; }
+  .modal-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .modal-subtitle { font-size: 13px; color: var(--text2); margin-bottom: 24px; line-height: 1.7; }
+  .modal-amount-box {
+    background: linear-gradient(135deg, #2C2417, #4A3A25);
+    border-radius: var(--radius-sm);
+    padding: 20px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .modal-amount-box::before {
+    content: '';
+    position: absolute;
+    top: -20px; right: -20px;
+    width: 100px; height: 100px;
+    background: radial-gradient(circle, rgba(200,151,42,0.2) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+  .modal-amount-label { color: rgba(255,255,255,0.5); font-size: 11px; letter-spacing: 1px; margin-bottom: 4px; }
+  .modal-amount {
+    font-family: 'Playfair Display', serif;
+    color: white;
+    font-size: 42px;
+    font-weight: 700;
+  }
+  .modal-amount .cur { color: var(--gold); font-size: 22px; vertical-align: super; font-weight: 400; }
+  .modal-prompt {
+    font-size: 14px;
+    color: var(--text2);
+    line-height: 1.8;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    text-align: left;
+    border-left: 3px solid var(--gold);
+  }
+  .modal-prompt strong { color: var(--gold-dark); }
+  .modal-btns { display: flex; gap: 10px; }
+  .modal-btn {
+    flex: 1;
+    padding: 14px;
+    border-radius: var(--radius-sm);
+    border: none;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .modal-btn.secondary {
+    background: var(--bg2);
+    color: var(--text2);
+  }
+  .modal-btn.primary {
+    background: linear-gradient(135deg, var(--gold-dark), var(--gold));
+    color: white;
+    box-shadow: 0 4px 16px rgba(200,151,42,0.3);
+  }
+  .modal-btn:active { transform: scale(0.97); }
+
+  /* ─── CONFETTI ─── */
+  .confetti-container {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 300;
+    overflow: hidden;
+  }
+  .confetti-piece {
+    position: absolute;
+    top: -20px;
+    width: 8px; height: 8px;
+    border-radius: 2px;
+    animation: confetti-fall linear forwards;
+  }
+  @keyframes confetti-fall {
+    0%   { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; }
+    80%  { opacity: 1; }
+    100% { transform: translateY(105vh) rotate(720deg) scale(0.8); opacity: 0; }
+  }
+
+  /* ─── MISC ─── */
+  .divider {
+    height: 1px;
+    background: var(--bg2);
+    margin: 0 18px;
+  }
+  .mutuality-note {
+    font-size: 11px;
+    color: var(--text3);
+    padding: 8px 18px 14px;
+    line-height: 1.6;
+  }
+  .mutuality-note.warn { color: var(--orange); }
+
+  /* Scroll fade-in animation */
+  .section-card {
+    animation: fadeUp 0.4s ease both;
+  }
+  .section-card:nth-child(1) { animation-delay: 0.05s; }
+  .section-card:nth-child(2) { animation-delay: 0.10s; }
+  .section-card:nth-child(3) { animation-delay: 0.15s; }
+  .section-card:nth-child(4) { animation-delay: 0.20s; }
+  .section-card:nth-child(5) { animation-delay: 0.25s; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════ HEADER ═══════════════════════════════════════ -->
+<div class="header">
+  <div class="header-top">
+    <div>
+      <div class="app-title">个人成长金库</div>
+    </div>
+    <div class="date-display" id="dateDisplay"></div>
+  </div>
+
+  <div class="vault-total-row">
+    <div class="vault-icon">🏦</div>
+    <div class="vault-info">
+      <div class="vault-label">金库累计总额</div>
+      <div class="vault-amount">
+        <span class="vault-cur">¥</span>
+        <span class="vault-num" id="vaultTotal">0.00</span>
+      </div>
+      <div class="vault-debt-badge" id="vaultDebtBadge">⚠️ 负债 <span id="vaultDebtAmt">0</span></div>
+    </div>
+    <div class="vault-sep"></div>
+    <div class="vault-streak">
+      <div class="vault-streak-num" id="streakNum">0</div>
+      <div class="vault-streak-label">连续打卡天</div>
+    </div>
+  </div>
+
+  <div class="earnings-display">
+    <div class="earnings-label">TODAY'S EARNINGS</div>
+    <div class="earnings-amount" id="earningsDisplay">
+      <span class="currency">¥</span><span id="earningsNum">0.00</span>
+    </div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-meta">
+      <span class="progress-label">常规收益进度</span>
+      <span class="progress-value" id="progressText">¥0 / ¥20</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+    <div class="flow-badge" id="flowBadge">⚡ 心流模式已解锁，无上限</div>
+  </div>
+  <div class="sync-dot offline" id="syncDot">
+    <span class="dot"></span><span id="syncText">连接中…</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ MAIN ═══════════════════════════════════════ -->
+<div class="main">
+
+  <!-- ─── 负债管理 ─── -->
+  <div class="debt-card" id="debtCard">
+    <div class="debt-header">
+      <div class="debt-header-left">
+        <div class="section-icon" style="background:rgba(196,107,42,0.1);color:var(--orange);">💳</div>
+        <div>
+          <div class="section-title">负债管理</div>
+          <div class="section-sub">预支记录与还款进度</div>
+        </div>
+      </div>
+      <button class="add-debt-btn" onclick="openDebtModal()">+ 记录预支</button>
+    </div>
+    <div class="debt-list" id="debtList">
+      <div class="debt-empty" id="debtEmpty">🌿 暂无负债<br>金库状态健康</div>
+    </div>
+    <div class="net-row" id="netRow" style="display:none">
+      <span class="net-label">净余额（入库 − 负债）</span>
+      <span class="net-val" id="netVal">¥0.00</span>
+    </div>
+  </div>
+
+  <!-- ─── 统计图表 ─── -->
+  <div class="stats-card" id="statsCard">
+    <div class="stats-header">
+      <div class="stats-header-left">
+        <div class="section-icon amber">📊</div>
+        <div>
+          <div class="section-title">收益统计</div>
+          <div class="section-sub">历史入库记录</div>
+        </div>
+      </div>
+      <div class="stats-tabs">
+        <button class="stats-tab active" id="tabWeek" onclick="switchTab('week')">本周</button>
+        <button class="stats-tab" id="tabMonth" onclick="switchTab('month')">本月</button>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="statsChart"></canvas>
+      <div class="no-data-msg" id="noDataMsg">
+        <span class="nd-icon">🌱</span>
+        <span>完成第一次结算后显示</span>
+      </div>
+    </div>
+    <div class="stats-summary">
+      <div class="stats-stat">
+        <div class="stats-stat-val"><span class="s-cur">¥</span><span id="statTotal">0</span></div>
+        <div class="stats-stat-label">周期合计</div>
+      </div>
+      <div class="stats-stat">
+        <div class="stats-stat-val"><span class="s-cur">¥</span><span id="statAvg">0</span></div>
+        <div class="stats-stat-label">日均收益</div>
+      </div>
+      <div class="stats-stat">
+        <div class="stats-stat-val"><span id="statDays">0</span><span class="s-cur" style="font-size:14px"> 天</span></div>
+        <div class="stats-stat-label">已打卡天数</div>
+      </div>
+    </div>
+    <div id="todayDetail" style="display:none;padding:10px 18px 14px;border-top:1px solid var(--bg2);">
+      <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">今日打卡明细</div>
+      <div id="todayDetailItems" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
+    </div>
+  </div>
+
+  <!-- ─── 类别一：日常习惯 ─── -->
+  <div class="section-card">
+    <div class="section-header">
+      <div class="section-icon amber">☀️</div>
+      <div>
+        <div class="section-title">类别一：日常习惯</div>
+        <div class="section-sub">每日基础打卡</div>
+      </div>
+    </div>
+
+    <div class="task-item radio-group-morning" data-key="morning_calm" data-value="4" data-radio="morning" onclick="toggleRadio(this)">
+      <div class="task-checkbox"><svg width="12" height="9" viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-text">从容早晨<span class="task-tag">二选一</span></div>
+      <div class="task-value"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">4</span></div>
+    </div>
+    <div class="task-item radio-group-morning" data-key="morning_charged" data-value="4" data-radio="morning" onclick="toggleRadio(this)">
+      <div class="task-checkbox"><svg width="12" height="9" viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-text">满电启动<span class="task-tag">二选一</span></div>
+      <div class="task-value"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">4</span></div>
+    </div>
+    <div class="task-item" data-key="sleep" data-value="3" onclick="toggleTask(this)">
+      <div class="task-checkbox"><svg width="12" height="9" viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-text">按时充电 / 不熬夜</div>
+      <div class="task-value"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">3</span></div>
+    </div>
+    <div class="task-item" data-key="baseline" data-value="2" onclick="toggleTask(this)">
+      <div class="task-checkbox"><svg width="12" height="9" viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-text">今日保底（没犯错没乱花钱）</div>
+      <div class="task-value"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">2</span></div>
+    </div>
+  </div>
+
+  <!-- ─── 类别二：核心价值 ─── -->
+  <div class="section-card">
+    <div class="section-header">
+      <div class="section-icon blue">🎯</div>
+      <div>
+        <div class="section-title">类别二：核心价值</div>
+        <div class="section-sub">高价值行动</div>
+      </div>
+    </div>
+
+    <div class="counter-item">
+      <div class="counter-info">
+        <div class="counter-name">深度专注学习</div>
+        <div class="counter-rate">+¥5 / 小时，最高计 2 小时</div>
+      </div>
+      <div class="counter-controls">
+        <button class="counter-btn" id="studyMinus" onclick="changeCounter('study', -1)">−</button>
+        <div class="counter-val" id="studyVal">0</div>
+        <button class="counter-btn" id="studyPlus" onclick="changeCounter('study', 1)">+</button>
+      </div>
+      <div class="counter-total" id="studyTotal"><span class="v-cur">¥</span><span class="v-num">0</span></div>
+    </div>
+    <div class="task-item" data-key="exercise" data-value="6" onclick="toggleTask(this)">
+      <div class="task-checkbox"><svg width="12" height="9" viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-text">有效运动 30 分钟以上</div>
+      <div class="task-value"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">6</span></div>
+    </div>
+  </div>
+
+  <!-- ─── 类别三：秩序与心智 ─── -->
+  <div class="section-card">
+    <div class="section-header">
+      <div class="section-icon purple">🧹</div>
+      <div>
+        <div class="section-title">类别三：秩序与心智</div>
+        <div class="section-sub">环境与情绪管理</div>
+      </div>
+    </div>
+
+    <div class="task-item" data-key="cleaning" data-value="5" onclick="toggleTask(this)">
+      <div class="task-checkbox"><svg width="12" height="9" viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-text">深度大扫除<span class="week-badge" id="badge-cleaning"></span><button class="week-undo" id="undo-cleaning" onclick="undoWeeklyUsage('cleaning',event)">撤销</button></div>
+      <div class="task-value"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">5</span></div>
+    </div>
+    <div class="task-item" data-key="desk" data-value="4" onclick="toggleTask(this)">
+      <div class="task-checkbox"><svg width="12" height="9" viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-text">桌面清理收纳<span class="week-badge" id="badge-desk"></span><button class="week-undo" id="undo-desk" onclick="undoWeeklyUsage('desk',event)">撤销</button></div>
+      <div class="task-value"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">4</span></div>
+    </div>
+    <div class="task-item" data-key="procrastination" data-value="8" onclick="toggleTask(this)">
+      <div class="task-checkbox"><svg width="12" height="9" viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-text">搞定拖延的棘手琐事</div>
+      <div class="task-value"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">8</span></div>
+    </div>
+    <div class="task-item" data-key="emotion" data-value="10" onclick="toggleTask(this)">
+      <div class="task-checkbox"><svg width="12" height="9" viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-text">负面情绪回收</div>
+      <div class="task-value"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">10</span></div>
+    </div>
+    <div class="task-item" data-key="social" data-value="10" onclick="toggleTask(this)">
+      <div class="task-checkbox"><svg width="12" height="9" viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-text">社交突破</div>
+      <div class="task-value"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">10</span></div>
+    </div>
+  </div>
+
+  <!-- ─── 类别四：X因子探索 ─── -->
+  <div class="section-card">
+    <div class="section-header">
+      <div class="section-icon teal">🌱</div>
+      <div>
+        <div class="section-title">类别四：X 因子探索</div>
+        <div class="section-sub">好奇心与探索精神</div>
+      </div>
+    </div>
+
+    <div class="task-item" data-key="newgood" data-value="15" onclick="toggleTask(this)">
+      <div class="task-checkbox"><svg width="12" height="9" viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-text">尝试新事物且体验极好 ✨</div>
+      <div class="task-value"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">15</span></div>
+    </div>
+    <div class="task-item" data-key="newbad" data-value="10" onclick="toggleTask(this)">
+      <div class="task-checkbox"><svg width="12" height="9" viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-text">尝试新事物但翻车了 💥</div>
+      <div class="task-value"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">10</span></div>
+    </div>
+    <div class="task-item" data-key="curiosity" data-value="5" onclick="toggleTask(this)">
+      <div class="task-checkbox"><svg width="12" height="9" viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-text">好奇心挖潜查资料</div>
+      <div class="task-value"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">5</span></div>
+    </div>
+    <div class="task-item" data-key="wander" data-value="5" onclick="toggleTask(this)">
+      <div class="task-checkbox"><svg width="12" height="9" viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-text">无目的漫游发呆</div>
+      <div class="task-value"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">5</span></div>
+    </div>
+  </div>
+
+  <!-- ─── 类别五：外挂调控区 ─── -->
+  <div class="section-card">
+    <div class="section-header">
+      <div class="section-icon orange">⚡</div>
+      <div>
+        <div class="section-title">类别五：外挂调控区</div>
+        <div class="section-sub">特殊加成 & 消费降级</div>
+      </div>
+    </div>
+
+    <!-- 低谷补贴 -->
+    <div class="toggle-item">
+      <div class="toggle-info">
+        <div class="toggle-name">⚡ 低谷补贴金</div>
+        <div class="toggle-desc">今日带病/情绪极差，依然坚持打卡</div>
+      </div>
+      <div class="toggle-right">
+        <div class="toggle-value" id="valLow"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">5</span></div>
+        <div class="toggle-switch" id="toggleLow" onclick="toggleSwitch('low')"></div>
+      </div>
+    </div>
+
+    <!-- 心流特权 -->
+    <div class="toggle-item">
+      <div class="toggle-info">
+        <div class="toggle-name">🔥 心流特权</div>
+        <div class="toggle-desc">今日进入心流状态，解除 ¥20 计算上限</div>
+      </div>
+      <div class="toggle-right">
+        <div class="toggle-value text-only" id="valFlow">无上限</div>
+        <div class="toggle-switch" id="toggleFlow" onclick="toggleSwitch('flow')"></div>
+      </div>
+    </div>
+
+    <!-- 自我和解 -->
+    <div class="toggle-item">
+      <div class="toggle-info">
+        <div class="toggle-name">🫂 自我和解</div>
+        <div class="toggle-desc">今日摆烂但原谅了自己</div>
+      </div>
+      <div class="toggle-right">
+        <div class="toggle-value" id="valReconcile"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">3</span></div>
+        <div class="toggle-switch" id="toggleReconcile" onclick="toggleSwitch('reconcile')"></div>
+      </div>
+    </div>
+    <div class="mutuality-note" id="reconcileNote" style="display:none;">💡 已勾选自我和解，建议放下其他打卡压力～</div>
+
+    <!-- 主动降级 -->
+    <div class="divider"></div>
+    <div class="input-item">
+      <div class="input-emoji">🔄</div>
+      <div class="input-info">
+        <div class="input-name">主动降级置换</div>
+        <div class="input-desc">今日通过消费降级省下的金额<br>（不受 ¥20 上限限制，直接叠加）</div>
+      </div>
+      <div class="input-field-wrap">
+        <span class="input-field-currency">¥</span>
+        <input class="input-field" type="number" id="downgradeInput" min="0" placeholder="0" oninput="recalculate()">
+      </div>
+    </div>
+  </div>
+
+  <!-- 计算逻辑说明 -->
+  <div class="info-box">
+    <strong>📐 计算规则：</strong><br>
+    常规总和（类别1-4 + 低谷补贴 + 自我和解）最高 <strong>¥20</strong>，开启心流特权后上限解除。<br>消费降级金额无上限，直接累加至最终总额。
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════ SETTLE BAR ═══════════════════════════════════════ -->
+<div class="settle-bar">
+  <button class="settle-btn" onclick="openModal()">✨ 一键结算今日奖励</button>
+  <button onclick="syncToCloud()" style="margin-top:8px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.7);border-radius:10px;padding:8px 18px;font-size:12px;font-family:'Noto Sans SC',sans-serif;cursor:pointer;width:100%;">☁️ 立即同步到云端</button>
+</div>
+
+<!-- ═══════════════════════════════════════ MODAL ═══════════════════════════════════════ -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
+  <div class="modal" id="modal">
+    <div class="modal-icon">🎉</div>
+    <div class="modal-title">今日结算完成！</div>
+    <div class="modal-subtitle">你已完成今日成长金库记录<br>转账完成后点击下方按钮</div>
+
+    <div class="modal-amount-box">
+      <div class="modal-amount-label">今日实际转账金额</div>
+      <div class="modal-amount"><span class="cur">¥</span><span id="modalAmount">0.00</span></div>
+    </div>
+
+    <div class="modal-prompt">
+      📱 请打开 <strong>微信</strong> 或 <strong>支付宝</strong>，向你的成长金库账户转账：<br>
+      <strong id="modalPromptAmount" style="font-size:15px;display:block;margin-top:6px;color:inherit;"></strong>
+    </div>
+
+    <div class="modal-btns">
+      <button class="modal-btn secondary" onclick="closeModal()">再看看</button>
+      <button class="modal-btn primary" onclick="resetAndClose()">✅ 已完成转账</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ CONFETTI ═══════════════════════════════════════ -->
+<div class="confetti-container" id="confettiContainer"></div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+const state = {
+  tasks: {},       // key -> boolean
+  study: 0,        // 0|1|2
+  low: false,
+  flow: false,
+  reconcile: false,
+  downgrade: 0,
+};
+
+
+// ─── RADIO TOGGLE (mutually exclusive) ────────────────────────────────────────
+function toggleRadio(el) {
+  const group = el.dataset.radio;
+  const key = el.dataset.key;
+  const wasChecked = el.classList.contains('checked');
+
+  // Uncheck all in same radio group
+  document.querySelectorAll(`[data-radio="${group}"]`).forEach(item => {
+    item.classList.remove('checked');
+    state.tasks[item.dataset.key] = false;
+  });
+
+  // If wasn't checked, check this one
+  if (!wasChecked) {
+    el.classList.add('checked');
+    state.tasks[key] = true;
+  }
+  recalculate();
+}
+
+
+// ─── JSONBIN SETUP ────────────────────────────────────────────
+const JB_KEY='$2a$10$T/foAH5VDzXBEKqfLxX99./8tXjJfUKyqwZm/PYEKY.NRU162WC8C';
+const JB_BIN_KEY='gvt_bin_id';
+function setSyncStatus(st,tx){const d=document.getElementById('syncDot'),t=document.getElementById('syncText');if(!d)return;d.className='sync-dot '+st;t.textContent=tx;}
+async function jbReq(m,p,b){const o={method:m,headers:{'X-Master-Key':JB_KEY,'Content-Type':'application/json','X-Bin-Versioning':'false'}};if(b!==undefined)o.body=JSON.stringify(b);const r=await fetch('https://api.jsonbin.io/v3'+p,o);if(!r.ok)throw new Error(r.status);return r.json();}
+async function syncToCloud(){setSyncStatus('syncing','同步中…');try{const p={history:loadHistory(),weekly:JSON.parse(localStorage.getItem('gvt_weekly')||'{}'),debts:loadDebts()};let id=localStorage.getItem(JB_BIN_KEY);if(!id){const r=await jbReq('POST','/b',p);id=r.metadata.id;localStorage.setItem(JB_BIN_KEY,id);}else{await jbReq('PUT','/b/'+id,p);}setSyncStatus('synced','已同步 ✓');}catch(e){setSyncStatus('error','同步失败');}}
+async function loadFromCloud(){const id=localStorage.getItem(JB_BIN_KEY);if(!id){setSyncStatus('synced','本地运行中');return;}setSyncStatus('syncing','加载中…');try{const r=await jbReq('GET','/b/'+id+'/latest');const d=r.record;if(d.history)lsSaveHistory(d.history);if(d.weekly)localStorage.setItem('gvt_weekly',JSON.stringify(d.weekly));if(d.debts)lsSaveDebts(d.debts);setSyncStatus('synced','云端已连接');updateVaultDisplay();renderChart();applyWeeklyLimitUI();renderDebtCard();}catch(e){setSyncStatus('error','加载失败，使用本地');}}
+// ─── HISTORY STORAGE ──────────────────────────────────────────────────────────
+const STORAGE_KEY = 'gvt_history';
+
+function lsSaveHistory(h){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(h));}catch{}}
+
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function saveHistory(history) {
+  lsSaveHistory(history);
+}
+
+function getTodayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function recordDailyAmount(amount) {
+  const history = loadHistory();
+  const today = getTodayStr();
+  // Capture full state snapshot for this settlement
+  const snapshot = {
+    tasks: { ...state.tasks },
+    study: state.study,
+    low: state.low,
+    flow: state.flow,
+    reconcile: state.reconcile,
+    downgrade: state.downgrade,
+  };
+  const idx = history.findIndex(r => r.date === today);
+  if (idx >= 0) {
+    history[idx].amount = amount;
+    history[idx].snapshot = snapshot;
+  } else {
+    history.push({ date: today, amount, snapshot });
+  }
+  // Keep last 90 days
+  history.sort((a,b) => a.date.localeCompare(b.date));
+  if (history.length > 90) history.splice(0, history.length - 90);
+  saveHistory(history);
+}
+
+function getVaultTotal() {
+  return loadHistory().reduce((s, r) => s + r.amount, 0);
+}
+
+function getStreak() {
+  const history = loadHistory();
+  if (!history.length) return 0;
+  const sorted = [...history].sort((a,b) => b.date.localeCompare(a.date));
+  let streak = 0;
+  const d = new Date();
+  for (let i = 0; i < 60; i++) {
+    const s = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    if (sorted.find(r => r.date === s)) { streak++; d.setDate(d.getDate()-1); }
+    else if (i === 0) { d.setDate(d.getDate()-1); } // allow today not yet settled
+    else break;
+  }
+  return streak;
+}
+
+// ─── CHART ────────────────────────────────────────────────────────────────────
+let chartInstance = null;
+let currentTab = 'week';
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabWeek').classList.toggle('active', tab === 'week');
+  document.getElementById('tabMonth').classList.toggle('active', tab === 'month');
+  renderChart();
+}
+
+function getWeekData() {
+  const history = loadHistory();
+  const labels = [], data = [];
+  const dayNames = ['日','一','二','三','四','五','六'];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const s = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const rec = history.find(r => r.date === s);
+    labels.push(i === 0 ? '今天' : `周${dayNames[d.getDay()]}`);
+    data.push(rec ? rec.amount : 0);
+  }
+  return { labels, data };
+}
+
+function getMonthData() {
+  const history = loadHistory();
+  const now = new Date();
+  const year = now.getFullYear(), month = now.getMonth();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const labels = [], data = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const s = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const rec = history.find(r => r.date === s);
+    labels.push(d % 5 === 0 || d === 1 ? String(d) : '');
+    data.push(rec ? rec.amount : 0);
+  }
+  return { labels, data };
+}
+
+function renderChart() {
+  const { labels, data } = currentTab === 'week' ? getWeekData() : getMonthData();
+  const hasData = data.some(v => v > 0);
+  const noDataEl = document.getElementById('noDataMsg');
+  const canvas = document.getElementById('statsChart');
+
+  if (!hasData) {
+    noDataEl.style.display = 'flex';
+    canvas.style.display = 'none';
+    document.getElementById('statTotal').textContent = '0';
+    document.getElementById('statAvg').textContent = '0';
+    document.getElementById('statDays').textContent = '0';
+    return;
+  }
+  noDataEl.style.display = 'none';
+  canvas.style.display = 'block';
+
+  const filled = data.filter(v => v > 0);
+  const total = filled.reduce((s,v) => s+v, 0);
+  const avg = filled.length ? (total / filled.length) : 0;
+  document.getElementById('statTotal').textContent = total.toFixed(1);
+  document.getElementById('statAvg').textContent = avg.toFixed(1);
+  document.getElementById('statDays').textContent = filled.length;
+
+  const goldColor = '#C8972A';
+  const goldFade = 'rgba(200,151,42,0.12)';
+
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+  chartInstance = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: data.map(v => v > 0 ? 'rgba(200,151,42,0.75)' : 'rgba(200,151,42,0.08)'),
+        borderColor: data.map(v => v > 0 ? goldColor : 'transparent'),
+        borderWidth: 1,
+        borderRadius: 5,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.raw > 0 ? ` ¥${ctx.raw.toFixed(2)}` : ' 未打卡',
+          },
+          backgroundColor: '#2C2417',
+          titleColor: 'rgba(255,255,255,0.6)',
+          bodyColor: '#fff',
+          padding: 10,
+          cornerRadius: 8,
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: '#A89E90', font: { size: 10, family: 'Noto Sans SC' } },
+          border: { display: false },
+        },
+        y: {
+          grid: { color: 'rgba(44,36,23,0.06)', drawTicks: false },
+          ticks: {
+            color: '#A89E90',
+            font: { size: 10 },
+            callback: v => v > 0 ? '¥'+v : '',
+            maxTicksLimit: 4,
+          },
+          border: { display: false },
+          beginAtZero: true,
+        }
+      }
+    }
+  });
+}
+
+const TASK_NAMES={morning_calm:'☀️ 从容早晨',morning_charged:'⚡ 满电启动',sleep:'🌙 规律作息',exercise:'💪 运动',baseline:'✅ 基础打卡',cleaning:'🧹 深度大扫除',desk:'📦 桌面收纳',wander:'🚶 出门溜达',procrastination:'⏰ 拖延突破',curiosity:'🔍 好奇心挖潜',emotion:'💚 情绪回收',social:'🤝 社交突破',newgood:'✨ 新体验(好)',newbad:'⚠️ 新体验(坏)'};
+function renderTodayDetail(){const today=getTodayStr();const rec=loadHistory().find(r=>r.date===today);const box=document.getElementById('todayDetail');const items=document.getElementById('todayDetailItems');if(!box||!items)return;if(!rec||!rec.snapshot){box.style.display='none';return;}box.style.display='block';const s=rec.snapshot;const chips=[];Object.entries(s.tasks||{}).forEach(([k,v])=>{if(v)chips.push(TASK_NAMES[k]||k);});if(s.study>0)chips.push('📚 学习'+s.study+'小时');if(s.low)chips.push('🪫 低谷时段');if(s.reconcile)chips.push('🤍 自我和解');if(s.flow)chips.push('⚡ 心流解锁');if(s.downgrade>0)chips.push('💰 主动降级 ¥'+s.downgrade);items.innerHTML=chips.map(c=>'<span style="background:var(--gold-light);color:var(--gold-dark);font-size:11px;padding:3px 8px;border-radius:6px;">'+c+'</span>').join('');}
+function updateVaultDisplay(){
+  const total=getVaultTotal();
+  document.getElementById('vaultTotal').textContent=total.toFixed(2);
+  document.getElementById('streakNum').textContent=getStreak();
+  renderTodayDetail();
+  // Update header debt badge
+  const debts=loadDebts();
+  const totalDebt=debts.filter(d=>d.status!=='paid').reduce((s,d)=>s+d.remaining,0);
+  const badge=document.getElementById('vaultDebtBadge');
+  const debtAmt=document.getElementById('vaultDebtAmt');
+  if(badge&&debtAmt){
+    if(totalDebt>0){badge.classList.add('has-debt');debtAmt.textContent=totalDebt.toFixed(2);}
+    else{badge.classList.remove('has-debt');}
+  }
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+function init() {
+  const now = new Date();
+  const days = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
+  document.getElementById('dateDisplay').textContent =
+    `${now.getMonth()+1}月${now.getDate()}日 ${days[now.getDay()]}`;
+  recalculate();
+  applyWeeklyLimitUI();
+  updateVaultDisplay();
+  renderChart();
+  loadFromCloud();
+  renderDebtCard();
+}
+
+// ─── TOGGLE TASK ──────────────────────────────────────────────────────────────
+function toggleTask(el) {
+  const key = el.dataset.key;
+  state.tasks[key] = !state.tasks[key];
+  el.classList.toggle('checked', state.tasks[key]);
+  recalculate();
+}
+
+// ─── COUNTER ──────────────────────────────────────────────────────────────────
+function changeCounter(key, delta) {
+  if (key === 'study') {
+    state.study = Math.max(0, Math.min(2, state.study + delta));
+    document.getElementById('studyVal').textContent = state.study;
+    const total = state.study * 5;
+    const el = document.getElementById('studyTotal');
+    el.innerHTML = `<span class='v-cur'>¥</span><span class='v-num'>${total}</span>`;
+    el.classList.toggle('active', state.study > 0);
+    document.getElementById('studyMinus').disabled = state.study === 0;
+    document.getElementById('studyPlus').disabled = state.study === 2;
+    recalculate();
+  }
+}
+
+// ─── TOGGLE SWITCH ────────────────────────────────────────────────────────────
+function toggleSwitch(key) {
+  state[key] = !state[key];
+  const el = document.getElementById('toggle' + capitalize(key));
+
+  if (key === 'flow') {
+    el.classList.toggle('flow-on', state.flow);
+    el.classList.remove('on');
+    document.getElementById('valFlow').classList.toggle('active', state.flow);
+  } else {
+    el.classList.toggle('on', state[key]);
+    document.getElementById('val' + capitalize(key)).classList.toggle('active', state[key]);
+  }
+
+  if (key === 'reconcile') {
+    document.getElementById('reconcileNote').style.display = state.reconcile ? 'block' : 'none';
+  }
+
+  recalculate();
+}
+
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+let lastTotal = 0;
+
+// ─── CALCULATE ────────────────────────────────────────────────────────────────
+function recalculate() {
+  // Sum regular tasks
+  let regular = 0;
+  document.querySelectorAll('.task-item').forEach(el => {
+    if (el.classList.contains('checked')) {
+      regular += parseFloat(el.dataset.value || 0);
+    }
+  });
+  regular += state.study * 5;
+  if (state.low) regular += 5;
+  if (state.reconcile) regular += 3;
+
+  // Cap logic
+  const LIMIT = 20;
+  let capped;
+  if (state.flow) {
+    capped = regular;
+  } else {
+    capped = Math.min(regular, LIMIT);
+  }
+
+  // Downgrade
+  const dv = parseFloat(document.getElementById('downgradeInput').value) || 0;
+  state.downgrade = dv;
+  const total = capped + dv;
+
+  // Update display with animation
+  updateEarnings(total);
+  updateProgress(regular, capped);
+}
+
+function updateEarnings(total) {
+  if (total === lastTotal) return;
+  lastTotal = total;
+
+  const el = document.getElementById('earningsDisplay');
+  el.classList.remove('bump');
+  void el.offsetWidth; // reflow
+  el.classList.add('bump');
+  setTimeout(() => el.classList.remove('bump'), 400);
+
+  animateNumber('earningsNum', total);
+}
+
+function animateNumber(id, target) {
+  const el = document.getElementById(id);
+  const start = parseFloat(el.textContent) || 0;
+  const dur = 300;
+  const startTime = performance.now();
+  const tick = (now) => {
+    const t = Math.min((now - startTime) / dur, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    el.textContent = (start + (target - start) * eased).toFixed(2);
+    if (t < 1) requestAnimationFrame(tick);
+    else el.textContent = target.toFixed(2);
+  };
+  requestAnimationFrame(tick);
+}
+
+function updateProgress(regular, capped) {
+  const LIMIT = 20;
+  const pct = state.flow ? Math.min(regular / LIMIT * 100, 100) : Math.min(capped / LIMIT * 100, 100);
+  const fill = document.getElementById('progressFill');
+  fill.style.width = pct + '%';
+
+  const atCap = !state.flow && capped >= LIMIT;
+  fill.classList.toggle('capped', atCap && !state.flow);
+  fill.classList.toggle('flow', state.flow);
+
+  const progressText = state.flow
+    ? `¥${regular.toFixed(0)} (心流模式)`
+    : `¥${capped.toFixed(0)} / ¥${LIMIT}`;
+  document.getElementById('progressText').textContent = progressText;
+
+  const badge = document.getElementById('flowBadge');
+  badge.classList.toggle('visible', state.flow);
+}
+
+// ─── MODAL ────────────────────────────────────────────────────────────────────
+function openModal() {
+  const total = lastTotal;
+  document.getElementById('modalAmount').textContent = total.toFixed(2);
+  document.getElementById('modalPromptAmount').textContent =
+    `¥${total.toFixed(2)} 元 → 成长金库`;
+  document.getElementById('modalOverlay').classList.add('open');
+  launchConfetti();
+}
+
+function recordWeeklyOnSettle() {
+  const today = getTodayStr();
+  const prevRec = loadHistory().find(r => r.date === today);
+  const alreadyCounted = prevRec && prevRec.weeklyRecorded;
+  if (!alreadyCounted) {
+    Object.keys(WEEKLY_LIMITS).forEach(key => {
+      if (state.tasks[key]) incrementWeeklyUsage(key);
+    });
+  }
+
+  // Auto-apply earnings to debts first, remainder to vault
+  let remaining = lastTotal;
+  const debts = loadDebts();
+  for (const d of debts) {
+    if (d.status === 'paid' || remaining <= 0) continue;
+    const pay = Math.min(remaining, d.remaining);
+    d.remaining = Math.round((d.remaining - pay) * 100) / 100;
+    if (d.remaining <= 0) { d.remaining = 0; d.status = 'paid'; }
+    remaining = Math.round((remaining - pay) * 100) / 100;
+  }
+  lsSaveDebts(debts);
+  // Amount that actually enters the vault
+  const vaultAmount = remaining;
+
+  recordDailyAmount(vaultAmount);
+  const history = loadHistory();
+  const idx = history.findIndex(r => r.date === today);
+  if (idx >= 0) {
+    history[idx].weeklyRecorded = true;
+    history[idx].debtRepaid = Math.round((lastTotal - vaultAmount) * 100) / 100;
+  }
+  saveHistory(history);
+  updateVaultDisplay();
+  renderChart();
+  renderDebtCard();
+  syncToCloud();
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function closeModalOutside(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+}
+
+function resetAndClose() {
+  recordWeeklyOnSettle();
+  closeModal();
+  setTimeout(resetAll, 300);
+}
+
+function resetAll() {
+  // Uncheck all tasks
+  document.querySelectorAll('.task-item.checked').forEach(el => {
+    el.classList.remove('checked');
+  });
+  state.tasks = {};
+
+  // Reset counter
+  state.study = 0;
+  document.getElementById('studyVal').textContent = '0';
+  document.getElementById('studyTotal').innerHTML = '<span class="v-cur">¥</span><span class="v-num">0</span>';
+  document.getElementById('studyTotal').classList.remove('active');
+  document.getElementById('studyMinus').disabled = false;
+  document.getElementById('studyPlus').disabled = false;
+
+  // Reset toggles
+  ['low','flow','reconcile'].forEach(k => {
+    state[k] = false;
+    const el = document.getElementById('toggle' + capitalize(k));
+    el.className = 'toggle-switch';
+    const valEl = document.getElementById('val' + capitalize(k));
+    if (valEl) valEl.classList.remove('active');
+  });
+  document.getElementById('reconcileNote').style.display = 'none';
+
+  // Reset input
+  document.getElementById('downgradeInput').value = '';
+  state.downgrade = 0;
+
+  recalculate();
+  applyWeeklyLimitUI();
+}
+
+// ─── CONFETTI ─────────────────────────────────────────────────────────────────
+function launchConfetti() {
+  const container = document.getElementById('confettiContainer');
+  container.innerHTML = '';
+  const colors = ['#C8972A','#F5E9C9','#4A8C6F','#C46B2A','#3A6EA8','#E8C987','#8B6914'];
+  const shapes = ['square','circle','rectangle'];
+
+  for (let i = 0; i < 80; i++) {
+    const p = document.createElement('div');
+    p.className = 'confetti-piece';
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const x = Math.random() * 100;
+    const delay = Math.random() * 1.2;
+    const dur = 2 + Math.random() * 2;
+    const size = 6 + Math.random() * 8;
+    const shape = shapes[Math.floor(Math.random() * shapes.length)];
+
+    p.style.cssText = `
+      left: ${x}%;
+      width: ${size}px;
+      height: ${shape === 'rectangle' ? size * 0.4 : size}px;
+      background: ${color};
+      border-radius: ${shape === 'circle' ? '50%' : shape === 'rectangle' ? '2px' : '2px'};
+      animation-duration: ${dur}s;
+      animation-delay: ${delay}s;
+    `;
+    container.appendChild(p);
+  }
+  setTimeout(() => { container.innerHTML = ''; }, 4000);
+}
+
+
+// ─── RADIO TOGGLE (mutually exclusive) ────────────────────────────────────────
+function toggleRadio(el) {
+  const group = el.dataset.radio;
+  const key = el.dataset.key;
+  const wasChecked = el.classList.contains('checked');
+
+  // Uncheck all in same radio group
+  document.querySelectorAll(`[data-radio="${group}"]`).forEach(item => {
+    item.classList.remove('checked');
+    state.tasks[item.dataset.key] = false;
+  });
+
+  // If wasn't checked, check this one
+  if (!wasChecked) {
+    el.classList.add('checked');
+    state.tasks[key] = true;
+  }
+  recalculate();
+}
+
+
+// ─── WEEKLY LIMITS ────────────────────────────────────────────────────────────
+const WEEKLY_LIMITS = {
+  cleaning: 1,
+  desk: 2,
+};
+
+function getWeekKey() {
+  const d = new Date();
+  const jan1 = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+  return `week_${d.getFullYear()}_${week}`;
+}
+
+function loadWeeklyUsage() {
+  const key = getWeekKey();
+  try { const all=JSON.parse(localStorage.getItem('gvt_weekly')||'{}'); return all[key]||{}; }
+  catch { return {}; }
+}
+
+function saveWeeklyUsage(usage) {
+  const key=getWeekKey();
+  try { const all=JSON.parse(localStorage.getItem('gvt_weekly')||'{}'); all[key]=usage; localStorage.setItem('gvt_weekly',JSON.stringify(all)); } catch {}
+}
+
+function getWeeklyUsed(taskKey) {
+  return loadWeeklyUsage()[taskKey] || 0;
+}
+
+function incrementWeeklyUsage(taskKey) {
+  const usage = loadWeeklyUsage();
+  usage[taskKey] = (usage[taskKey] || 0) + 1;
+  saveWeeklyUsage(usage);
+}
+
+function applyWeeklyLimitUI(){
+  // Check if today's settled record includes each weekly task
+  const today=getTodayStr();
+  const todayRec=loadHistory().find(r=>r.date===today);
+  const todaySnap=todayRec&&todayRec.snapshot&&todayRec.weeklyRecorded?todayRec.snapshot.tasks:{};
+  Object.entries(WEEKLY_LIMITS).forEach(([key,limit])=>{
+    const used=getWeeklyUsed(key),remaining=limit-used;
+    const el=document.querySelector('[data-key="'+key+'"]');
+    const badge=document.getElementById('badge-'+key);
+    const undo=document.getElementById('undo-'+key);
+    if(!el||!badge)return;
+    if(remaining<=0){
+      el.classList.add('week-disabled');
+      badge.textContent='本周已用完';
+      badge.className='week-badge exhausted';
+      // Only show undo if TODAY's settlement used this task
+      if(undo)undo.style.display=todaySnap[key]?'inline-block':'none';
+    }else{
+      el.classList.remove('week-disabled');
+      badge.textContent='本周剩余 '+remaining+'/'+limit;
+      badge.className='week-badge available';
+      if(undo)undo.style.display='none';
+    }
+  });
+}
+
+function undoWeeklyUsage(taskKey,e){
+  if(e)e.stopPropagation();
+  // Only allowed if today's settlement included this task
+  const today=getTodayStr();
+  const history=loadHistory();
+  const idx=history.findIndex(r=>r.date===today);
+  if(idx<0||!history[idx].weeklyRecorded||!history[idx].snapshot)return;
+  if(!history[idx].snapshot.tasks||!history[idx].snapshot.tasks[taskKey])return;
+  // Decrement weekly counter
+  const used=getWeeklyUsed(taskKey);
+  if(used<=0)return;
+  const u=loadWeeklyUsage();
+  u[taskKey]=used-1;
+  saveWeeklyUsage(u);
+  // Subtract task value from today's record
+  const taskValues={cleaning:5,desk:4};
+  const val=taskValues[taskKey]||0;
+  history[idx].amount=Math.round((history[idx].amount-val)*100)/100;
+  if(history[idx].amount<0)history[idx].amount=0;
+  // Remove from snapshot so undo can't be clicked again
+  history[idx].snapshot.tasks[taskKey]=false;
+  // Also refund from debt repayment if needed (re-add val back to debts)
+  const debts=loadDebts();
+  let refund=val;
+  for(let i=debts.length-1;i>=0&&refund>0;i--){
+    if(debts[i].status==='paid'&&history[idx].debtRepaid>0){
+      const restore=Math.min(refund,debts[i].amount-debts[i].remaining);
+      debts[i].remaining=Math.round((debts[i].remaining+restore)*100)/100;
+      debts[i].status='active';
+      refund=Math.round((refund-restore)*100)/100;
+    }
+  }
+  lsSaveDebts(debts);
+  saveHistory(history);
+  updateVaultDisplay();
+  renderDebtCard();
+  applyWeeklyLimitUI();
+  syncToCloud();
+}
+
+
+// ─── DEBT SYSTEM ──────────────────────────────────────────────────
+const DEBT_KEY="gvt_debts";
+function loadDebts(){try{return JSON.parse(localStorage.getItem(DEBT_KEY)||"[]");}catch{return[];}}
+function lsSaveDebts(d){try{localStorage.setItem(DEBT_KEY,JSON.stringify(d));}catch{}}
+function openDebtModal(){document.getElementById("debtAmountInput").value="";document.getElementById("debtNoteInput").value="";document.getElementById("debtModalOverlay").classList.add("open");setTimeout(()=>document.getElementById("debtAmountInput").focus(),350);}
+function closeDebtModal(){document.getElementById("debtModalOverlay").classList.remove("open");}
+function closeDebtModalOutside(e){if(e.target===document.getElementById("debtModalOverlay"))closeDebtModal();}
+function confirmAddDebt(){
+  const amount=parseFloat(document.getElementById("debtAmountInput").value);
+  const note=document.getElementById("debtNoteInput").value.trim();
+  if(!amount||amount<=0){document.getElementById("debtAmountInput").focus();return;}
+  const debts=loadDebts();
+  debts.push({id:Date.now(),amount:Math.round(amount*100)/100,remaining:Math.round(amount*100)/100,note:note||"未填写备注",date:getTodayStr(),status:"active"});
+  lsSaveDebts(debts);closeDebtModal();renderDebtCard();updateVaultDisplay();syncToCloud();
+}
+function renderDebtCard(){
+  const debts=loadDebts();
+  const list=document.getElementById('debtList');
+  const empty=document.getElementById('debtEmpty');
+  const netRow=document.getElementById('netRow');
+  const netVal=document.getElementById('netVal');
+  if(!list)return;
+  const active=debts.filter(d=>d.status!=='paid');
+  const paid=debts.filter(d=>d.status==='paid');
+  const all=[...active,...paid.slice(-3)];
+  // Always keep empty placeholder in DOM - just toggle visibility
+  if(empty)empty.style.display=all.length===0?'block':'none';
+  // Remove old debt-item divs (not the empty placeholder)
+  Array.from(list.children).forEach(c=>{if(c.id!=='debtEmpty')c.remove();});
+  if(all.length===0){if(netRow)netRow.style.display='none';return;}
+  const totalDebt=active.reduce((s,d)=>s+d.remaining,0);
+  const net=Math.round((getVaultTotal()-totalDebt)*100)/100;
+  const frag=document.createDocumentFragment();
+  all.forEach(d=>{
+    const pct=Math.max(0,Math.round((1-d.remaining/d.amount)*100));
+    const ip=d.status==='paid';
+    const div=document.createElement('div');
+    div.className='debt-item'+(ip?' paid':'');
+    div.innerHTML='<div class="debt-dot"></div>'+
+      '<div class="debt-body">'+
+        '<div class="debt-note">'+d.note+'</div>'+
+        '<div class="debt-bar-wrap"><div class="debt-bar-fill" style="width:'+pct+'%"></div></div>'+
+        '<div class="debt-meta">'+
+          '<span>'+d.date+' · 原始 ¥'+d.amount.toFixed(2)+'</span>'+
+          '<span>'+(ip?'✓ 已还清':'已还 '+pct+'%')+'</span>'+
+        '</div>'+
+      '</div>'+
+      '<div class="debt-amount-col">'+
+        '<div class="debt-remaining">¥'+d.remaining.toFixed(2)+'</div>'+
+        '<div class="debt-remaining-label">'+(ip?'已结清':'待还')+'</div>'+
+      '</div>';
+    frag.appendChild(div);
+  });
+  list.insertBefore(frag,list.firstChild);
+  if(netRow){
+    netRow.style.display='flex';
+    if(netVal){netVal.textContent=(net>=0?'+':'')+'¥'+net.toFixed(2);netVal.className='net-val '+(net>=0?'positive':'negative');}
+  }
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+init();
+
+// Update minus button state initially
+document.getElementById('studyMinus').disabled = true;
+</script>
+
+<!-- ─── DEBT MODAL ─── -->
+<div class="debt-modal-overlay" id="debtModalOverlay" onclick="closeDebtModalOutside(event)">
+  <div class="debt-modal">
+    <div class="debt-modal-title">记录预支</div>
+    <div class="debt-field">
+      <label>预支金额（¥）</label>
+      <input type="number" id="debtAmountInput" placeholder="例如：128" min="0" step="0.01">
+    </div>
+    <div class="debt-field">
+      <label>备注（买了什么）</label>
+      <input type="text" id="debtNoteInput" placeholder="例如：新耳机">
+    </div>
+    <button class="debt-confirm-btn" onclick="confirmAddDebt()">确认记录</button>
+    <button class="debt-cancel-btn" onclick="closeDebtModal()">取消</button>
+  </div>
+</div>
+</body>
+</html>
