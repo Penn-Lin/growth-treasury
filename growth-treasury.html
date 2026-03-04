@@ -1155,6 +1155,12 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 </style>
+  <link rel="manifest" href="./manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="成长金库">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <meta name="theme-color" content="#2C2417">
 </head>
 <body id="appRoot">
 
@@ -2415,5 +2421,13 @@ document.getElementById('studyMinus').disabled = true;
     <button class="debt-cancel-btn" onclick="closeDebtModal()">取消</button>
   </div>
 </div>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
+</script>
 </body>
 </html>
