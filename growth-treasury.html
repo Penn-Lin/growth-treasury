@@ -563,6 +563,22 @@
     transition: opacity 0.15s;
   }
   .redo-btn:active { opacity: 0.85; }
+  .debt-repay-btn {
+    display: block;
+    margin-top: 5px;
+    background: rgba(200,151,42,0.12);
+    border: 1px solid rgba(200,151,42,0.3);
+    color: var(--gold-dark);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .debt-repay-btn:active { background: rgba(200,151,42,0.22); }
   /* ─── SYNC STATUS ─── */
   .sync-dot {
     display: inline-flex;
@@ -1535,8 +1551,8 @@ const JB_KEY='$2a$10$T/foAH5VDzXBEKqfLxX99./8tXjJfUKyqwZm/PYEKY.NRU162WC8C';
 const JB_BIN_KEY='gvt_bin_id';
 function setSyncStatus(st,tx){const d=document.getElementById('syncDot'),t=document.getElementById('syncText');if(!d)return;d.className='sync-dot '+st;t.textContent=tx;}
 async function jbReq(m,p,b){const o={method:m,headers:{'X-Master-Key':JB_KEY,'Content-Type':'application/json','X-Bin-Versioning':'false'}};if(b!==undefined)o.body=JSON.stringify(b);const r=await fetch('https://api.jsonbin.io/v3'+p,o);if(!r.ok)throw new Error(r.status);return r.json();}
-async function syncToCloud(){setSyncStatus('syncing','同步中…');try{const p={history:loadHistory(),weekly:JSON.parse(localStorage.getItem('gvt_weekly')||'{}'),debts:loadDebts()};let id=localStorage.getItem(JB_BIN_KEY);if(!id){const r=await jbReq('POST','/b',p);id=r.metadata.id;localStorage.setItem(JB_BIN_KEY,id);}else{await jbReq('PUT','/b/'+id,p);}setSyncStatus('synced','已同步 ✓');}catch(e){setSyncStatus('error','同步失败');}}
-async function loadFromCloud(){const id=localStorage.getItem(JB_BIN_KEY);if(!id){setSyncStatus('synced','本地运行中');return;}setSyncStatus('syncing','加载中…');try{const r=await jbReq('GET','/b/'+id+'/latest');const d=r.record;if(d.history)lsSaveHistory(d.history);if(d.weekly)localStorage.setItem('gvt_weekly',JSON.stringify(d.weekly));if(d.debts)lsSaveDebts(d.debts);setSyncStatus('synced','云端已连接');updateVaultDisplay();renderChart();applyWeeklyLimitUI();renderDebtCard();restoreSettledStateAfterSync();}catch(e){setSyncStatus('error','加载失败，使用本地');}}
+async function syncToCloud(){setSyncStatus('syncing','同步中…');try{const p={history:loadHistory(),weekly:JSON.parse(localStorage.getItem('gvt_weekly')||'{}'),debts:loadDebts(),vaultRepay:loadVaultRepayments()};let id=localStorage.getItem(JB_BIN_KEY);if(!id){const r=await jbReq('POST','/b',p);id=r.metadata.id;localStorage.setItem(JB_BIN_KEY,id);}else{await jbReq('PUT','/b/'+id,p);}setSyncStatus('synced','已同步 ✓');}catch(e){setSyncStatus('error','同步失败');}}
+async function loadFromCloud(){const id=localStorage.getItem(JB_BIN_KEY);if(!id){setSyncStatus('synced','本地运行中');return;}setSyncStatus('syncing','加载中…');try{const r=await jbReq('GET','/b/'+id+'/latest');const d=r.record;if(d.history)lsSaveHistory(d.history);if(d.weekly)localStorage.setItem('gvt_weekly',JSON.stringify(d.weekly));if(d.debts)lsSaveDebts(d.debts);if(d.vaultRepay)saveVaultRepayments(d.vaultRepay);setSyncStatus('synced','云端已连接');updateVaultDisplay();renderChart();applyWeeklyLimitUI();renderDebtCard();restoreSettledStateAfterSync();}catch(e){setSyncStatus('error','加载失败，使用本地');}}
 // ─── HISTORY STORAGE ──────────────────────────────────────────────────────────
 const STORAGE_KEY = 'gvt_history';
 
@@ -1582,7 +1598,15 @@ function recordDailyAmount(amount) {
 }
 
 function getVaultTotal() {
-  return loadHistory().reduce((s, r) => s + r.amount, 0);
+  const earned = loadHistory().reduce((s, r) => s + r.amount, 0);
+  const repaid = loadVaultRepayments().reduce((s, r) => s + r.amount, 0);
+  return Math.round((earned - repaid) * 100) / 100;
+}
+function loadVaultRepayments() {
+  try { return JSON.parse(localStorage.getItem('gvt_vault_repay') || '[]'); } catch { return []; }
+}
+function saveVaultRepayments(arr) {
+  try { localStorage.setItem('gvt_vault_repay', JSON.stringify(arr)); } catch {} 
 }
 
 function getStreak() {
@@ -2013,15 +2037,43 @@ function restoreSettledStateAfterSync() {
 }
 
 function redoToday() {
-  // Unlock for re-entry - clear settled flag from today record
   const today = getTodayStr();
   const history = loadHistory();
   const idx = history.findIndex(r => r.date === today);
-  if (idx >= 0) {
+  if (idx >= 0 && history[idx].weeklyRecorded && history[idx].snapshot) {
+    // Restore weekly counts for any weekly-limited tasks that were settled today
+    const snap = history[idx].snapshot;
+    const usage = loadWeeklyUsage();
+    Object.keys(WEEKLY_LIMITS).forEach(key => {
+      if (snap.tasks && snap.tasks[key]) {
+        usage[key] = Math.max(0, (usage[key] || 0) - 1);
+      }
+    });
+    saveWeeklyUsage(usage);
+    // Also restore any debt that was auto-repaid today
+    if (history[idx].debtRepaid > 0) {
+      const debts = loadDebts();
+      let toRestore = history[idx].debtRepaid;
+      for (let i = debts.length - 1; i >= 0 && toRestore > 0; i--) {
+        const maxRestore = history[idx].amount !== undefined
+          ? Math.min(toRestore, debts[i].amount - debts[i].remaining)
+          : 0;
+        if (maxRestore > 0) {
+          debts[i].remaining = Math.round((debts[i].remaining + maxRestore) * 100) / 100;
+          debts[i].status = 'active';
+          toRestore = Math.round((toRestore - maxRestore) * 100) / 100;
+        }
+      }
+      lsSaveDebts(debts);
+    }
     history[idx].weeklyRecorded = false;
+    history[idx].debtRepaid = 0;
+    history[idx].amount = 0;
   }
   saveHistory(history);
   document.getElementById('appRoot').classList.remove('app-settled');
+  renderDebtCard();
+  applyWeeklyLimitUI();
   resetAll();
 }
 
@@ -2262,6 +2314,7 @@ function renderDebtCard(){
       '<div class="debt-amount-col">'+
         '<div class="debt-remaining">¥'+d.remaining.toFixed(2)+'</div>'+
         '<div class="debt-remaining-label">'+(ip?'已结清':'待还')+'</div>'+
+        (!ip?'<button class="debt-repay-btn" onclick="openRepayModal('+d.id+','+d.remaining+')">从金库还</button>':'')+
       '</div>';
     frag.appendChild(div);
   });
@@ -2270,6 +2323,44 @@ function renderDebtCard(){
     netRow.style.display='flex';
     if(netVal){netVal.textContent=(net>=0?'+':'')+'¥'+net.toFixed(2);netVal.className='net-val '+(net>=0?'positive':'negative');}
   }
+}
+
+// ─── VAULT REPAY ─────────────────────────────────────────────────────
+let _repayDebtId=null,_repayMax=0;
+function openRepayModal(debtId,remaining){
+  _repayDebtId=debtId;_repayMax=remaining;
+  const vault=getVaultTotal();
+  document.getElementById('repayVaultBalance').textContent='¥'+vault.toFixed(2);
+  document.getElementById('repayDebtRemaining').textContent='¥'+remaining.toFixed(2);
+  const inp=document.getElementById('repayAmountInput');
+  inp.value='';inp.placeholder='最多¥'+Math.min(remaining,vault).toFixed(2);
+  document.getElementById('repayModalOverlay').classList.add('open');
+  setTimeout(()=>inp.focus(),350);
+}
+function closeRepayModal(){
+  document.getElementById('repayModalOverlay').classList.remove('open');
+  _repayDebtId=null;
+}
+function confirmRepayFromVault(){
+  const amount=parseFloat(document.getElementById('repayAmountInput').value);
+  if(!amount||amount<=0){document.getElementById('repayAmountInput').focus();return;}
+  const vault=getVaultTotal();
+  if(amount>vault||amount>_repayMax){
+    document.getElementById('repayAmountInput').value='';
+    document.getElementById('repayAmountInput').placeholder='超限，最多¥'+Math.min(vault,_repayMax).toFixed(2);
+    document.getElementById('repayAmountInput').focus();return;
+  }
+  const repayments=loadVaultRepayments();
+  repayments.push({id:Date.now(),debtId:_repayDebtId,amount:Math.round(amount*100)/100,date:getTodayStr()});
+  saveVaultRepayments(repayments);
+  const debts=loadDebts();
+  const debt=debts.find(d=>d.id===_repayDebtId);
+  if(debt){debt.remaining=Math.round((debt.remaining-amount)*100)/100;if(debt.remaining<=0){debt.remaining=0;debt.status='paid';}}
+  lsSaveDebts(debts);
+  closeRepayModal();
+  updateVaultDisplay();
+  renderDebtCard();
+  syncToCloud();
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
@@ -2289,6 +2380,24 @@ init();
 // Update minus button state initially
 document.getElementById('studyMinus').disabled = true;
 </script>
+
+<!-- ─── REPAY MODAL ─── -->
+<div class="debt-modal-overlay" id="repayModalOverlay" onclick="if(event.target===this)closeRepayModal()">
+  <div class="debt-modal">
+    <div class="debt-modal-title">从金库还款</div>
+    <div style="font-size:13px;color:var(--text3);font-family:'Noto Sans SC',sans-serif;margin-bottom:16px;">
+      金库当前余额：<strong id="repayVaultBalance" style="color:var(--gold-dark)">¥0</strong>
+      &nbsp;·&nbsp;
+      此笔待还：<strong id="repayDebtRemaining" style="color:var(--orange)">¥0</strong>
+    </div>
+    <div class="debt-field">
+      <label>还款金额（¥）</label>
+      <input type="number" id="repayAmountInput" placeholder="输入金额" min="0.01" step="0.01">
+    </div>
+    <button class="debt-confirm-btn" onclick="confirmRepayFromVault()">确认从金库扣除</button>
+    <button class="debt-cancel-btn" onclick="closeRepayModal()">取消</button>
+  </div>
+</div>
 
 <!-- ─── DEBT MODAL ─── -->
 <div class="debt-modal-overlay" id="debtModalOverlay" onclick="closeDebtModalOutside(event)">
