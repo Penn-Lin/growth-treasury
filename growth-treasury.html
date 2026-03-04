@@ -579,6 +579,90 @@
     transition: background 0.15s;
   }
   .debt-repay-btn:active { background: rgba(200,151,42,0.22); }
+
+  /* ─── HISTORY LOG ─── */
+  .history-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    animation: fadeUp 0.4s ease both;
+  }
+  .history-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .history-header-left { display: flex; align-items: center; gap: 10px; }
+  .history-toggle-icon {
+    font-size: 12px; color: var(--text3);
+    transition: transform 0.25s;
+  }
+  .history-card.open .history-toggle-icon { transform: rotate(180deg); }
+  .history-body {
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1);
+  }
+  .history-card.open .history-body { max-height: 1200px; }
+  .history-row {
+    display: flex; align-items: center;
+    padding: 10px 18px;
+    border-top: 1px solid var(--bg2);
+    cursor: pointer;
+    transition: background 0.15s;
+    gap: 10px;
+  }
+  .history-row:active { background: var(--bg); }
+  .history-row-date {
+    font-size: 12px; color: var(--text3);
+    font-family: 'Noto Sans SC', sans-serif;
+    min-width: 52px; flex-shrink: 0;
+  }
+  .history-row-tags {
+    flex: 1; display: flex; flex-wrap: nowrap;
+    overflow: hidden; gap: 4px; align-items: center;
+  }
+  .history-tag {
+    font-size: 10px; white-space: nowrap;
+    background: var(--bg2); color: var(--text3);
+    border-radius: 4px; padding: 2px 5px;
+    flex-shrink: 0;
+  }
+  .history-tag-more {
+    font-size: 10px; color: var(--text3); flex-shrink: 0;
+  }
+  .history-row-amount {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px; font-weight: 600;
+    color: var(--gold-dark); flex-shrink: 0;
+  }
+  /* Expanded detail */
+  .history-detail {
+    display: none; padding: 10px 18px 14px;
+    background: var(--bg); border-top: 1px solid var(--bg2);
+  }
+  .history-detail.open { display: block; }
+  .history-detail-chips {
+    display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px;
+  }
+  .history-detail-chip {
+    background: var(--gold-light); color: var(--gold-dark);
+    font-size: 11px; border-radius: 6px; padding: 3px 8px;
+    font-family: 'Noto Sans SC', sans-serif;
+  }
+  .history-detail-meta {
+    font-size: 11px; color: var(--text3);
+    font-family: 'Noto Sans SC', sans-serif;
+    line-height: 1.8;
+  }
+  .history-empty {
+    padding: 20px 18px; text-align: center;
+    font-size: 13px; color: var(--text3);
+    font-family: 'Noto Sans SC', sans-serif;
+  }
   /* ─── SYNC STATUS ─── */
   .sync-dot {
     display: inline-flex;
@@ -1275,6 +1359,24 @@
     <div id="todayDetail" style="display:none;padding:10px 18px 14px;border-top:1px solid var(--bg2);">
       <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">今日打卡明细</div>
       <div id="todayDetailItems" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
+    </div>
+  </div>
+
+
+  <!-- ─── 历史明细 ─── -->
+  <div class="history-card" id="historyCard">
+    <div class="history-header" onclick="toggleHistoryCard()">
+      <div class="history-header-left">
+        <div class="section-icon" style="background:rgba(100,130,100,0.1);color:var(--green);">📋</div>
+        <div>
+          <div class="section-title">历史明细</div>
+          <div class="section-sub">每日打卡记录</div>
+        </div>
+      </div>
+      <span class="history-toggle-icon">▼</span>
+    </div>
+    <div class="history-body">
+      <div id="historyList"></div>
     </div>
   </div>
 
@@ -2368,6 +2470,79 @@ function confirmRepayFromVault(){
   updateVaultDisplay();
   renderDebtCard();
   syncToCloud();
+}
+
+// ─── HISTORY LOG ─────────────────────────────────────────────────
+function toggleHistoryCard() {
+  const card = document.getElementById('historyCard');
+  const isOpen = card.classList.toggle('open');
+  if (isOpen) renderHistoryList();
+}
+
+function renderHistoryList() {
+  const list = document.getElementById('historyList');
+  if (!list) return;
+  const history = loadHistory().slice().reverse(); // newest first
+  if (history.length === 0) {
+    list.innerHTML = '<div class="history-empty">暂无记录</div>';
+    return;
+  }
+  list.innerHTML = '';
+  history.forEach((rec, idx) => {
+    const snap = rec.snapshot;
+    const tasks = snap ? Object.entries(snap.tasks || {}).filter(([,v])=>v).map(([k])=>TASK_NAMES[k]||k) : [];
+    if (snap && snap.study > 0) tasks.unshift('📚 学习' + snap.study + 'h');
+
+    // Date formatting
+    const [y,m,d] = rec.date.split('-');
+    const dateLabel = m + '月' + d + '日';
+
+    // Row
+    const row = document.createElement('div');
+    row.className = 'history-row';
+    row.onclick = () => toggleHistoryDetail(idx);
+
+    // Tags preview (max 2 visible)
+    const visibleTags = tasks.slice(0, 2);
+    const moreCnt = tasks.length - visibleTags.length;
+    const tagsHtml = visibleTags.map(t =>
+      '<span class="history-tag">' + t + '</span>'
+    ).join('') + (moreCnt > 0 ? '<span class="history-tag-more">+' + moreCnt + '</span>' : '');
+
+    row.innerHTML =
+      '<div class="history-row-date">' + dateLabel + '</div>' +
+      '<div class="history-row-tags">' + tagsHtml + '</div>' +
+      '<div class="history-row-amount">¥' + (rec.totalEarned ?? rec.amount).toFixed(2) + '</div>';
+
+    // Detail panel
+    const detail = document.createElement('div');
+    detail.className = 'history-detail';
+    detail.id = 'hdetail-' + idx;
+
+    const chipsHtml = tasks.length > 0
+      ? tasks.map(t => '<span class="history-detail-chip">' + t + '</span>').join('')
+      : '<span style="color:var(--text3);font-size:12px;">无打卡项</span>';
+
+    const earned = (rec.totalEarned ?? rec.amount).toFixed(2);
+    const inVault = rec.amount.toFixed(2);
+    const repaid = rec.debtRepaid > 0 ? '还债 ¥' + rec.debtRepaid.toFixed(2) + '　' : '';
+
+    detail.innerHTML =
+      '<div class="history-detail-chips">' + chipsHtml + '</div>' +
+      '<div class="history-detail-meta">' +
+        '打卡收益 <strong>¥' + earned + '</strong>' +
+        (rec.debtRepaid > 0 ? '　' + repaid + '入库 <strong>¥' + inVault + '</strong>' : '') +
+      '</div>';
+
+    list.appendChild(row);
+    list.appendChild(detail);
+  });
+}
+
+function toggleHistoryDetail(idx) {
+  const detail = document.getElementById('hdetail-' + idx);
+  if (!detail) return;
+  detail.classList.toggle('open');
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
