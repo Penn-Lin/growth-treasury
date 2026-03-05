@@ -1811,14 +1811,14 @@ function saveVaultRepayments(arr) {
 }
 
 function getStreak() {
-  const history = loadHistory();
+  const history = loadHistory().filter(r => r.weeklyRecorded);
   if (!history.length) return 0;
   const sorted = [...history].sort((a,b) => b.date.localeCompare(a.date));
   let streak = 0;
   const d = new Date();
   for (let i = 0; i < 60; i++) {
     const s = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    if (sorted.find(r => r.date === s)) { streak++; d.setDate(d.getDate()-1); }
+    if (sorted.find(r => r.date === s && (r.totalEarned > 0 || r.amount > 0 || r.weeklyRecorded))) { streak++; d.setDate(d.getDate()-1); }
     else if (i === 0) { d.setDate(d.getDate()-1); } // allow today not yet settled
     else break;
   }
@@ -1838,16 +1838,19 @@ function switchTab(tab) {
 
 function getWeekData() {
   const history = loadHistory();
-  const labels = [], data = [];
+  const labels = [], data = [], debtData = [];
   const dayNames = ['日','一','二','三','四','五','六'];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
     const s = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const rec = history.find(r => r.date === s);
+    const earned = rec ? (rec.totalEarned ?? rec.amount) : 0;
+    const repaid = rec ? (rec.debtRepaid || 0) : 0;
     labels.push(i === 0 ? '今天' : `周${dayNames[d.getDay()]}`);
-    data.push(rec ? rec.amount : 0);
+    data.push(Math.max(0, earned - repaid));   // vault portion
+    debtData.push(repaid);                      // debt portion
   }
-  return { labels, data };
+  return { labels, data, debtData };
 }
 
 function getMonthData() {
@@ -1855,42 +1858,42 @@ function getMonthData() {
   const now = new Date();
   const year = now.getFullYear(), month = now.getMonth();
   const daysInMonth = new Date(year, month+1, 0).getDate();
-  const labels = [], data = [];
+  const labels = [], data = [], debtData = [];
   for (let d = 1; d <= daysInMonth; d++) {
     const s = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const rec = history.find(r => r.date === s);
+    const earned = rec ? (rec.totalEarned ?? rec.amount) : 0;
+    const repaid = rec ? (rec.debtRepaid || 0) : 0;
     labels.push(d % 5 === 0 || d === 1 ? String(d) : '');
-    data.push(rec ? rec.amount : 0);
+    data.push(Math.max(0, earned - repaid));
+    debtData.push(repaid);
   }
-  return { labels, data };
+  return { labels, data, debtData };
 }
 
 function renderChart() {
-  const { labels, data } = currentTab === 'week' ? getWeekData() : getMonthData();
-  const hasData = data.some(v => v > 0);
+  const { labels, data, debtData } = currentTab === 'week' ? getWeekData() : getMonthData();
+  const combined = data.map((v,i) => v + (debtData[i]||0));
+  const hasData = combined.some(v => v > 0);
   const noDataEl = document.getElementById('noDataMsg');
   const canvas = document.getElementById('statsChart');
 
   if (!hasData) {
-    noDataEl.style.display = 'flex';
-    canvas.style.display = 'none';
+    noDataEl.style.display = 'flex'; canvas.style.display = 'none';
     document.getElementById('statTotal').textContent = '0';
     document.getElementById('statAvg').textContent = '0';
     document.getElementById('statDays').textContent = '0';
     return;
   }
-  noDataEl.style.display = 'none';
-  canvas.style.display = 'block';
+  noDataEl.style.display = 'none'; canvas.style.display = 'block';
 
-  const filled = data.filter(v => v > 0);
-  const total = filled.reduce((s,v) => s+v, 0);
-  const avg = filled.length ? (total / filled.length) : 0;
-  document.getElementById('statTotal').textContent = total.toFixed(1);
+  const filledDays = combined.filter(v => v > 0).length;
+  const vaultTotal = data.reduce((s,v) => s+v, 0);
+  const earnedTotal = combined.reduce((s,v) => s+v, 0);
+  const avg = filledDays ? (earnedTotal / filledDays) : 0;
+  document.getElementById('statTotal').textContent = vaultTotal.toFixed(1);
   document.getElementById('statAvg').textContent = avg.toFixed(1);
-  document.getElementById('statDays').textContent = filled.length;
-
-  const goldColor = '#C8972A';
-  const goldFade = 'rgba(200,151,42,0.12)';
+  document.getElementById('statDays').textContent = filledDays;
 
   if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
 
@@ -1898,52 +1901,70 @@ function renderChart() {
     type: 'bar',
     data: {
       labels,
-      datasets: [{
-        data,
-        backgroundColor: data.map(v => v > 0 ? 'rgba(200,151,42,0.75)' : 'rgba(200,151,42,0.08)'),
-        borderColor: data.map(v => v > 0 ? goldColor : 'transparent'),
-        borderWidth: 1,
-        borderRadius: 5,
-        borderSkipped: false,
-      }]
+      datasets: [
+        {
+          label: '入库',
+          data,
+          backgroundColor: data.map(v => v > 0 ? 'rgba(200,151,42,0.8)' : 'rgba(200,151,42,0.08)'),
+          borderColor: data.map((v,i) => v > 0 ? '#C8972A' : 'transparent'),
+          borderWidth: 1,
+          borderRadius: combined.map((c,i) => (debtData[i]||0) > 0 ? {topLeft:0,topRight:0,bottomLeft:4,bottomRight:4} : 5),
+          borderSkipped: false,
+          stack: 'e',
+        },
+        {
+          label: '还债',
+          data: debtData,
+          backgroundColor: 'rgba(196,107,42,0.25)',
+          borderColor: 'rgba(196,107,42,0.65)',
+          borderWidth: 1.5,
+          borderRadius: {topLeft:5,topRight:5,bottomLeft:0,bottomRight:0},
+          borderSkipped: false,
+          stack: 'e',
+        }
+      ]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: ctx => ctx.raw > 0 ? ` ¥${ctx.raw.toFixed(2)}` : ' 未打卡',
+            title: ctx => ctx[0].label,
+            label: () => null,
+            afterBody: ctx => {
+              const i = ctx[0].dataIndex;
+              const v = data[i], d2 = debtData[i]||0;
+              if (v===0 && d2===0) return [' 未打卡'];
+              const lines = [];
+              if (v > 0) lines.push(' 入库 ¥' + v.toFixed(2));
+              if (d2 > 0) lines.push(' 还债 ¥' + d2.toFixed(2));
+              return lines;
+            }
           },
           backgroundColor: '#2C2417',
           titleColor: 'rgba(255,255,255,0.6)',
-          bodyColor: '#fff',
-          padding: 10,
-          cornerRadius: 8,
+          bodyColor: '#fff', padding: 10, cornerRadius: 8,
+          filter: item => item.formattedValue !== 'null',
         }
       },
       scales: {
         x: {
-          grid: { display: false },
+          stacked: true, grid: { display: false },
           ticks: { color: '#A89E90', font: { size: 10, family: 'Noto Sans SC' } },
           border: { display: false },
         },
         y: {
+          stacked: true,
           grid: { color: 'rgba(44,36,23,0.06)', drawTicks: false },
-          ticks: {
-            color: '#A89E90',
-            font: { size: 10 },
-            callback: v => v > 0 ? '¥'+v : '',
-            maxTicksLimit: 4,
-          },
-          border: { display: false },
-          beginAtZero: true,
+          ticks: { color: '#A89E90', font: { size: 10 }, callback: v => v > 0 ? '¥'+v : '', maxTicksLimit: 4 },
+          border: { display: false }, beginAtZero: true,
         }
       }
     }
   });
 }
+
 
 const TASK_NAMES={morning_calm:'☀️ 从容早晨',morning_charged:'⚡ 满电启动',sleep:'🌙 规律作息',exercise:'💪 运动',baseline:'✅ 基础打卡',cleaning:'🧹 深度大扫除',desk:'📦 桌面收纳',wander:'🚶 出门溜达',procrastination:'⏰ 拖延突破',curiosity:'🔍 好奇心挖潜',emotion:'💚 情绪回收',social:'🤝 社交突破',newgood:'✨ 新体验(好)',newbad:'⚠️ 新体验(坏)'};
 function renderTodayDetail(){const today=getTodayStr();const rec=loadHistory().find(r=>r.date===today);const box=document.getElementById('todayDetail');const items=document.getElementById('todayDetailItems');if(!box||!items)return;if(!rec||!rec.snapshot){box.style.display='none';return;}box.style.display='block';const s=rec.snapshot;const chips=[];Object.entries(s.tasks||{}).forEach(([k,v])=>{if(v)chips.push(TASK_NAMES[k]||k);});if(s.study>0)chips.push('📚 学习'+s.study+'小时');if(s.low)chips.push('🪫 低谷时段');if(s.reconcile)chips.push('🤍 自我和解');if(s.flow)chips.push('⚡ 心流解锁');if(s.downgrade>0)chips.push('💰 主动降级 ¥'+s.downgrade);items.innerHTML=chips.map(c=>'<span style="background:var(--gold-light);color:var(--gold-dark);font-size:11px;padding:3px 8px;border-radius:6px;">'+c+'</span>').join('');}
