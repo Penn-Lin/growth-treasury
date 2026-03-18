@@ -2315,7 +2315,7 @@ function resetAll() {
   document.getElementById('studyVal').textContent = '0';
   document.getElementById('studyTotal').innerHTML = '<span class="v-cur">¥</span><span class="v-num">0</span>';
   document.getElementById('studyTotal').classList.remove('active');
-  document.getElementById('studyMinus').disabled = false;
+  document.getElementById('studyMinus').disabled = true;
   document.getElementById('studyPlus').disabled = false;
 
   // Reset toggles
@@ -2397,9 +2397,16 @@ const WEEKLY_LIMITS = {
 
 function getWeekKey() {
   const d = new Date();
-  const jan1 = new Date(d.getFullYear(), 0, 1);
-  const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
-  return `week_${d.getFullYear()}_${week}`;
+  const day = d.getDay(); // 0=周日, 1=周一, ..., 6=周六
+  // 计算距本周周一差几天（周日算作上周的最后一天，往前推6天）
+  const diff = (day === 0) ? 6 : day - 1;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - diff);
+  const y = monday.getFullYear();
+  const m = String(monday.getMonth() + 1).padStart(2, '0');
+  const dom = String(monday.getDate()).padStart(2, '0');
+  // 以本周周一日期作为唯一 key，保证周一重置、周日结束
+  return `week_${y}-${m}-${dom}`;
 }
 
 function loadWeeklyUsage() {
@@ -2468,6 +2475,11 @@ function undoWeeklyUsage(taskKey,e){
   const val=taskValues[taskKey]||0;
   history[idx].amount=Math.round((history[idx].amount-val)*100)/100;
   if(history[idx].amount<0)history[idx].amount=0;
+  // 同步更新 totalEarned，避免结算标签金额与实际不一致
+  if(history[idx].totalEarned!=null){
+    history[idx].totalEarned=Math.round((history[idx].totalEarned-val)*100)/100;
+    if(history[idx].totalEarned<0)history[idx].totalEarned=0;
+  }
   // Remove from snapshot so undo can't be clicked again
   history[idx].snapshot.tasks[taskKey]=false;
   // Also refund from debt repayment if needed (re-add val back to debts)
@@ -2483,6 +2495,9 @@ function undoWeeklyUsage(taskKey,e){
   }
   lsSaveDebts(debts);
   saveHistory(history);
+  // 刷新"今日已结算"标签金额
+  const settledLabel=document.getElementById('settledLabel');
+  if(settledLabel){settledLabel.innerHTML='今日已结算 ✓ &nbsp;<strong>¥'+(history[idx].totalEarned??history[idx].amount).toFixed(2)+'</strong>';}
   updateVaultDisplay();
   renderDebtCard();
   applyWeeklyLimitUI();
