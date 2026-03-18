@@ -2805,72 +2805,146 @@ document.getElementById('studyMinus').disabled = true;
     <div style="font-size:13px;color:var(--text3);font-family:'Noto Sans SC',sans-serif;line-height:1.8;margin-bottom:18px;">
       请前往 <strong style="color:var(--text)">jsonbin.io → API Keys</strong>，在下方
       <strong style="color:var(--text)">Access Keys</strong> 区域创建一个新 Key，
-      权限勾选 Bins 的 <strong style="color:var(--text)">Create / Read / Update</strong> 三项即可，
-      粘贴到下方。Key 只存在你自己的设备本地，不会出现在任何代码里。
+      权限勾选 Bins 的 <strong style="color:var(--text)">Create / Read / Update</strong> 三项即可。
     </div>
+
     <div class="debt-field">
       <label>Access Key</label>
-      <input type="password" id="keyInput" placeholder="$2a$10$..." autocomplete="off" style="font-family:monospace;font-size:13px;">
+      <input type="password" id="keyInput" placeholder="粘贴你的 Access Key" autocomplete="off" style="font-family:monospace;font-size:13px;">
     </div>
+
+    <!-- Bin ID 区域 -->
+    <div class="debt-field">
+      <label style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Bin ID（换设备时填入，留空则自动创建）</span>
+      </label>
+      <div style="position:relative;">
+        <input type="text" id="binIdInput" placeholder="留空 = 首次同步时自动创建"
+          autocomplete="off" style="font-family:monospace;font-size:12px;padding-right:60px;">
+        <button id="binIdCopyBtn" onclick="copyBinId()" style="
+          position:absolute;right:8px;top:50%;transform:translateY(-50%);
+          background:var(--gold-light);color:var(--gold-dark);border:none;
+          border-radius:6px;font-size:11px;font-family:'Noto Sans SC',sans-serif;
+          font-weight:500;padding:3px 8px;cursor:pointer;display:none;
+        ">复制</button>
+      </div>
+    </div>
+
+    <!-- 当前 Bin ID 提示（已有时显示） -->
+    <div id="binIdHint" style="display:none;font-size:11px;color:var(--text3);font-family:'Noto Sans SC',sans-serif;
+      background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:12px;line-height:1.8;">
+      💡 <strong style="color:var(--text)">换设备同步方法：</strong><br>
+      在此设备复制上方 Bin ID，在新设备的「云同步设置」中填入相同的 Access Key 和 Bin ID，即可读取到同一份数据。
+    </div>
+
     <div id="keyStatus" style="font-size:12px;color:var(--red);min-height:18px;margin-bottom:8px;font-family:'Noto Sans SC',sans-serif;"></div>
     <button class="debt-confirm-btn" onclick="saveKeyAndConnect()">验证并保存</button>
-    <button class="debt-cancel-btn" id="keyClearBtn" onclick="clearKey()" style="color:var(--red);display:none;">🗑 清除已保存的 Key</button>
+    <button class="debt-cancel-btn" id="keyClearBtn" onclick="clearKey()" style="color:var(--red);display:none;">🗑 清除所有同步数据</button>
     <button class="debt-cancel-btn" onclick="closeKeyModal()">取消</button>
   </div>
 </div>
 
 <script>
 function openKeyModal() {
-  const existing = getJbKey();
+  const existingKey = getJbKey();
+  const existingBinId = localStorage.getItem(JB_BIN_KEY) || '';
+
+  // Access Key field
   const inp = document.getElementById('keyInput');
-  inp.value = existing ? '••••••••（已保存）' : '';
-  inp.dataset.hasExisting = existing ? 'true' : 'false';
+  inp.value = existingKey ? '••••••••（已保存）' : '';
+  inp.dataset.hasExisting = existingKey ? 'true' : 'false';
+
+  // Bin ID field
+  const binInp = document.getElementById('binIdInput');
+  const copyBtn = document.getElementById('binIdCopyBtn');
+  const hint = document.getElementById('binIdHint');
+  binInp.value = existingBinId;
+  binInp.dataset.hasExisting = existingBinId ? 'true' : 'false';
+  copyBtn.style.display = existingBinId ? 'block' : 'none';
+  hint.style.display = existingBinId ? 'block' : 'none';
+
   document.getElementById('keyStatus').textContent = '';
-  document.getElementById('keyClearBtn').style.display = existing ? 'block' : 'none';
+  document.getElementById('keyClearBtn').style.display = (existingKey || existingBinId) ? 'block' : 'none';
   document.getElementById('keyModalOverlay').classList.add('open');
-  if (!existing) setTimeout(() => inp.focus(), 350);
+  if (!existingKey) setTimeout(() => inp.focus(), 350);
 }
+
 function closeKeyModal() {
   document.getElementById('keyModalOverlay').classList.remove('open');
 }
+
+function copyBinId() {
+  const binId = localStorage.getItem(JB_BIN_KEY) || '';
+  if (!binId) return;
+  navigator.clipboard.writeText(binId).then(() => {
+    const btn = document.getElementById('binIdCopyBtn');
+    btn.textContent = '已复制';
+    btn.style.background = 'rgba(74,140,111,0.15)';
+    btn.style.color = 'var(--green)';
+    setTimeout(() => { btn.textContent = '复制'; btn.style.background = 'var(--gold-light)'; btn.style.color = 'var(--gold-dark)'; }, 2000);
+  }).catch(() => {
+    // Fallback for older browsers
+    const inp = document.getElementById('binIdInput');
+    inp.select();
+    document.execCommand('copy');
+  });
+}
+
 async function saveKeyAndConnect() {
   const inp = document.getElementById('keyInput');
+  const binInp = document.getElementById('binIdInput');
   const statusEl = document.getElementById('keyStatus');
-  let val = inp.value.trim();
-  // If showing masked placeholder and not edited, keep existing
-  if (inp.dataset.hasExisting === 'true' && val === '••••••••（已保存）') {
-    closeKeyModal();
-    return;
+
+  let keyVal = inp.value.trim();
+  const binVal = binInp.value.trim();
+
+  // If key field shows masked and wasn't edited, keep existing key
+  if (inp.dataset.hasExisting === 'true' && keyVal === '••••••••（已保存）') {
+    keyVal = getJbKey(); // use the stored one
   }
-  if (!val || val.length < 10) {
+
+  if (!keyVal || keyVal.length < 10) {
     statusEl.style.color = 'var(--red)';
-    statusEl.textContent = 'Key 不能为空，请检查后重试';
+    statusEl.textContent = 'Access Key 不能为空，请检查后重试';
     return;
   }
+
   statusEl.style.color = 'var(--text3)';
   statusEl.textContent = '验证中…';
-  // Quick validation: try creating a tiny test request (just check auth with a benign GET)
+
   try {
-    // Access Keys can't list bins, so we test by attempting to read a known-invalid bin
-    // A 404 means auth passed; a 401 means key is wrong
+    // Validate key by trying to read a dummy bin (404 = key valid)
     const r = await fetch('https://api.jsonbin.io/v3/b/000000000000000000000000', {
-      headers: { 'X-Access-Key': val }
+      headers: { 'X-Access-Key': keyVal }
     });
     if (r.status === 401 || r.status === 403) throw new Error('unauthorized');
-    // 404 = key valid but bin not found (expected), anything else also acceptable
-    localStorage.setItem(JB_MASTER_KEY_STORAGE, val);
+
+    // Save the key
+    localStorage.setItem(JB_MASTER_KEY_STORAGE, keyVal);
+
+    // If user provided a Bin ID, save it — this connects to an existing bin
+    if (binVal && binVal !== (binInp.dataset.hasExisting === 'true' ? binVal : '')) {
+      localStorage.setItem(JB_BIN_KEY, binVal);
+    } else if (binVal) {
+      localStorage.setItem(JB_BIN_KEY, binVal);
+    }
+    // If binVal is empty, leave JB_BIN_KEY alone
+    // (either already set = keep it, or not set = will be created on first sync)
+
     statusEl.style.color = 'var(--green)';
-    statusEl.textContent = '✓ 验证成功，已保存';
+    statusEl.textContent = binVal ? '✓ 已保存，正在拉取云端数据…' : '✓ 验证成功，已保存';
     document.getElementById('keyClearBtn').style.display = 'block';
     inp.dataset.hasExisting = 'true';
-    setTimeout(() => { closeKeyModal(); loadFromCloud(); }, 800);
+
+    setTimeout(() => { closeKeyModal(); loadFromCloud(); }, 900);
   } catch(e) {
     statusEl.style.color = 'var(--red)';
     statusEl.textContent = 'Key 无效或网络异常，请检查后重试';
   }
 }
+
 function clearKey() {
-  if (!confirm('确定清除已保存的 API Key？清除后云同步将停止。')) return;
+  if (!confirm('确定清除 Access Key 和 Bin ID？清除后云同步将停止，本地数据不受影响。')) return;
   localStorage.removeItem(JB_MASTER_KEY_STORAGE);
   localStorage.removeItem(JB_BIN_KEY);
   setSyncStatus('offline', '未配置 API Key');
