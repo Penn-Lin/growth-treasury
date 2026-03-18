@@ -2995,7 +2995,7 @@ async function renameBin() {
   statusEl.style.color = 'var(--text3)';
   statusEl.textContent = '改名中…';
   try {
-    await jbReq('PUT', '/b/' + id + '/meta/name', { name });
+    await jbReq('PUT', '/b/' + id + '/meta/name', {}, { 'X-Bin-Name': name });
     statusEl.style.color = 'var(--green)';
     statusEl.textContent = '✓ 已改名为「' + name + '」';
     document.getElementById('binNameInput').value = '';
