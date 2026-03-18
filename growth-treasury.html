@@ -1505,7 +1505,7 @@
     </div>
     <div class="task-item" data-key="wander" data-value="5" onclick="toggleTask(this)">
       <div class="task-checkbox"><svg width="12" height="9" viewBox="0 0 12 9"><polyline points="1,4.5 4.5,8 11,1" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-      <div class="task-text">无目的漫游发呆</div>
+      <div class="task-text">无目的漫游发呆<span class="week-badge" id="badge-wander"></span><button class="week-undo" id="undo-wander" onclick="undoWeeklyUsage('wander',event)">撤销</button></div>
       <div class="task-value"><span class="v-prefix">+</span><span class="v-cur">¥</span><span class="v-num">5</span></div>
     </div>
   </div>
@@ -2394,6 +2394,7 @@ function toggleRadio(el) {
 const WEEKLY_LIMITS = {
   cleaning: 1,
   desk: 2,
+  wander: 1,
 };
 
 function getWeekKey() {
@@ -2472,7 +2473,7 @@ function undoWeeklyUsage(taskKey,e){
   u[taskKey]=used-1;
   saveWeeklyUsage(u);
   // Subtract task value from today's record
-  const taskValues={cleaning:5,desk:4};
+  const taskValues={cleaning:5,desk:4,wander:5};
   const val=taskValues[taskKey]||0;
   history[idx].amount=Math.round((history[idx].amount-val)*100)/100;
   if(history[idx].amount<0)history[idx].amount=0;
