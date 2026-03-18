@@ -1728,7 +1728,7 @@ async function syncToCloud() {
       setLocalTimestamp(Date.now());
       payload.ts = getLocalTimestamp();
       const now = new Date();
-      const binName = `成长金库 · ${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const binName = `growth-treasury-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
       const r = await jbReq('POST', '/b', payload, { 'X-Bin-Name': binName });
       id = r.metadata.id;
       localStorage.setItem(JB_BIN_KEY, id);
