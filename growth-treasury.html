@@ -1291,8 +1291,11 @@
     </div>
     <div class="flow-badge" id="flowBadge">⚡ 心流模式已解锁，无上限</div>
   </div>
-  <div class="sync-dot offline" id="syncDot">
-    <span class="dot"></span><span id="syncText">连接中…</span>
+  <div style="display:flex;align-items:center;justify-content:space-between;position:relative;z-index:1;">
+    <div class="sync-dot offline" id="syncDot">
+      <span class="dot"></span><span id="syncText">连接中…</span>
+    </div>
+    <button onclick="openKeyModal()" style="background:none;border:none;color:rgba(255,255,255,0.3);font-size:11px;font-family:'Noto Sans SC',sans-serif;cursor:pointer;padding:2px 0;letter-spacing:0.3px;transition:color 0.2s;" onmouseover="this.style.color='rgba(255,255,255,0.6)'" onmouseout="this.style.color='rgba(255,255,255,0.3)'">⚙️ 云同步设置</button>
   </div>
 </div>
 
@@ -1655,10 +1658,23 @@ function toggleRadio(el) {
 
 
 // ─── JSONBIN SETUP ────────────────────────────────────────────
-const JB_KEY='$2a$10$T/foAH5VDzXBEKqfLxX99./8tXjJfUKyqwZm/PYEKY.NRU162WC8C';
 const JB_BIN_KEY='gvt_bin_id';
+const JB_MASTER_KEY_STORAGE = 'gvt_jb_key';
+
+function getJbKey() {
+  return localStorage.getItem(JB_MASTER_KEY_STORAGE) || '';
+}
+
 function setSyncStatus(st,tx){const d=document.getElementById('syncDot'),t=document.getElementById('syncText');if(!d)return;d.className='sync-dot '+st;t.textContent=tx;}
-async function jbReq(m,p,b){const o={method:m,headers:{'X-Master-Key':JB_KEY,'Content-Type':'application/json','X-Bin-Versioning':'false'}};if(b!==undefined)o.body=JSON.stringify(b);const r=await fetch('https://api.jsonbin.io/v3'+p,o);if(!r.ok)throw new Error(r.status);return r.json();}
+async function jbReq(m,p,b){
+  const key = getJbKey();
+  if (!key) throw new Error('no_key');
+  const o={method:m,headers:{'X-Access-Key':key,'Content-Type':'application/json','X-Bin-Versioning':'false'}};
+  if(b!==undefined)o.body=JSON.stringify(b);
+  const r=await fetch('https://api.jsonbin.io/v3'+p,o);
+  if(!r.ok)throw new Error(r.status);
+  return r.json();
+}
 async function getLocalTimestamp() {
   return parseInt(localStorage.getItem('gvt_ts') || '0');
 }
@@ -1718,11 +1734,16 @@ async function syncToCloud() {
       await jbReq('PUT', '/b/' + id, payload);
       setSyncStatus('synced', '已同步 ✓');
     }
-  } catch(e) { setSyncStatus('error', '同步失败'); }
+  } catch(e) {
+    if (e.message === 'no_key') { setSyncStatus('offline', '未配置 API Key'); }
+    else { setSyncStatus('error', '同步失败'); }
+  }
 }
 
 async function loadFromCloud() {
   const id = localStorage.getItem(JB_BIN_KEY);
+  const key = getJbKey();
+  if (!key) { setSyncStatus('offline', '未配置 API Key'); return; }
   if (!id) { setSyncStatus('synced', '本地运行中'); return; }
   setSyncStatus('syncing', '加载中…');
   try {
@@ -1750,7 +1771,10 @@ async function loadFromCloud() {
       // Local is newer - just show connected, will push on next settle
       setSyncStatus('synced', '云端已连接');
     }
-  } catch(e) { setSyncStatus('error', '加载失败，使用本地'); }
+  } catch(e) {
+    if (e.message === 'no_key') { setSyncStatus('offline', '未配置 API Key'); }
+    else { setSyncStatus('error', '加载失败，使用本地'); }
+  }
 }
 
 async function loadFromCloud(){const id=localStorage.getItem(JB_BIN_KEY);if(!id){setSyncStatus('synced','本地运行中');return;}setSyncStatus('syncing','加载中…');try{const r=await jbReq('GET','/b/'+id+'/latest');const d=r.record;if(d.history)lsSaveHistory(d.history);if(d.weekly)localStorage.setItem('gvt_weekly',JSON.stringify(d.weekly));if(d.debts)lsSaveDebts(d.debts);if(d.vaultRepay)saveVaultRepayments(d.vaultRepay);setSyncStatus('synced','云端已连接');updateVaultDisplay();renderChart();applyWeeklyLimitUI();renderDebtCard();restoreSettledStateAfterSync();}catch(e){setSyncStatus('error','加载失败，使用本地');}}
@@ -2698,7 +2722,87 @@ init();
 document.getElementById('studyMinus').disabled = true;
 </script>
 
-<!-- ─── REPAY MODAL ─── -->
+<!-- ─── API KEY 设置弹窗 ─── -->
+<div class="debt-modal-overlay" id="keyModalOverlay" onclick="if(event.target===this)closeKeyModal()">
+  <div class="debt-modal">
+    <div class="debt-modal-title">☁️ 云同步设置</div>
+    <div style="font-size:13px;color:var(--text3);font-family:'Noto Sans SC',sans-serif;line-height:1.8;margin-bottom:18px;">
+      请前往 <strong style="color:var(--text)">jsonbin.io → API Keys</strong>，在下方
+      <strong style="color:var(--text)">Access Keys</strong> 区域创建一个新 Key，
+      权限勾选 Bins 的 <strong style="color:var(--text)">Create / Read / Update</strong> 三项即可，
+      粘贴到下方。Key 只存在你自己的设备本地，不会出现在任何代码里。
+    </div>
+    <div class="debt-field">
+      <label>Access Key</label>
+      <input type="password" id="keyInput" placeholder="$2a$10$..." autocomplete="off" style="font-family:monospace;font-size:13px;">
+    </div>
+    <div id="keyStatus" style="font-size:12px;color:var(--red);min-height:18px;margin-bottom:8px;font-family:'Noto Sans SC',sans-serif;"></div>
+    <button class="debt-confirm-btn" onclick="saveKeyAndConnect()">验证并保存</button>
+    <button class="debt-cancel-btn" id="keyClearBtn" onclick="clearKey()" style="color:var(--red);display:none;">🗑 清除已保存的 Key</button>
+    <button class="debt-cancel-btn" onclick="closeKeyModal()">取消</button>
+  </div>
+</div>
+
+<script>
+function openKeyModal() {
+  const existing = getJbKey();
+  const inp = document.getElementById('keyInput');
+  inp.value = existing ? '••••••••（已保存）' : '';
+  inp.dataset.hasExisting = existing ? 'true' : 'false';
+  document.getElementById('keyStatus').textContent = '';
+  document.getElementById('keyClearBtn').style.display = existing ? 'block' : 'none';
+  document.getElementById('keyModalOverlay').classList.add('open');
+  if (!existing) setTimeout(() => inp.focus(), 350);
+}
+function closeKeyModal() {
+  document.getElementById('keyModalOverlay').classList.remove('open');
+}
+async function saveKeyAndConnect() {
+  const inp = document.getElementById('keyInput');
+  const statusEl = document.getElementById('keyStatus');
+  let val = inp.value.trim();
+  // If showing masked placeholder and not edited, keep existing
+  if (inp.dataset.hasExisting === 'true' && val === '••••••••（已保存）') {
+    closeKeyModal();
+    return;
+  }
+  if (!val || val.length < 10) {
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = 'Key 不能为空，请检查后重试';
+    return;
+  }
+  statusEl.style.color = 'var(--text3)';
+  statusEl.textContent = '验证中…';
+  // Quick validation: try creating a tiny test request (just check auth with a benign GET)
+  try {
+    // Access Keys can't list bins, so we test by attempting to read a known-invalid bin
+    // A 404 means auth passed; a 401 means key is wrong
+    const r = await fetch('https://api.jsonbin.io/v3/b/000000000000000000000000', {
+      headers: { 'X-Access-Key': val }
+    });
+    if (r.status === 401 || r.status === 403) throw new Error('unauthorized');
+    // 404 = key valid but bin not found (expected), anything else also acceptable
+    localStorage.setItem(JB_MASTER_KEY_STORAGE, val);
+    statusEl.style.color = 'var(--green)';
+    statusEl.textContent = '✓ 验证成功，已保存';
+    document.getElementById('keyClearBtn').style.display = 'block';
+    inp.dataset.hasExisting = 'true';
+    setTimeout(() => { closeKeyModal(); loadFromCloud(); }, 800);
+  } catch(e) {
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = 'Key 无效或网络异常，请检查后重试';
+  }
+}
+function clearKey() {
+  if (!confirm('确定清除已保存的 API Key？清除后云同步将停止。')) return;
+  localStorage.removeItem(JB_MASTER_KEY_STORAGE);
+  localStorage.removeItem(JB_BIN_KEY);
+  setSyncStatus('offline', '未配置 API Key');
+  closeKeyModal();
+}
+</script>
+
+
 <div class="debt-modal-overlay" id="repayModalOverlay" onclick="if(event.target===this)closeRepayModal()">
   <div class="debt-modal">
     <div class="debt-modal-title">从金库还款</div>
