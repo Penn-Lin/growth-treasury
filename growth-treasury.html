@@ -1167,6 +1167,17 @@
     border-left: 3px solid var(--gold);
   }
   .modal-prompt strong { color: var(--gold-dark); }
+  .modal-breakdown-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; font-family: 'Noto Sans SC', sans-serif;
+    color: var(--text2); padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-breakdown-row:last-child { border-bottom: none; }
+  .modal-breakdown-total {
+    font-weight: 600; color: var(--green) !important;
+    padding-top: 8px; font-size: 14px;
+  }
   .modal-btns { display: flex; gap: 10px; }
   .modal-btn {
     flex: 1;
@@ -1605,9 +1616,12 @@
     <div class="modal-subtitle">你已完成今日成长金库记录<br>转账完成后点击下方按钮</div>
 
     <div class="modal-amount-box">
-      <div class="modal-amount-label">今日实际转账金额</div>
+      <div class="modal-amount-label" id="modalAmountLabel">今日实际转账金额</div>
       <div class="modal-amount"><span class="cur">¥</span><span id="modalAmount">0.00</span></div>
     </div>
+
+    <!-- 还债拆分明细（有负债时显示） -->
+    <div id="modalBreakdown" style="display:none;background:var(--bg);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:16px;text-align:left;"></div>
 
     <div class="modal-prompt">
       📱 请打开 <strong>微信</strong> 或 <strong>支付宝</strong>，向你的成长金库账户转账：<br>
@@ -2203,11 +2217,50 @@ function updateProgress(regular, capped) {
 // ─── MODAL ────────────────────────────────────────────────────────────────────
 function openModal() {
   const total = lastTotal;
-  document.getElementById('modalAmount').textContent = total.toFixed(2);
-  document.getElementById('modalPromptAmount').textContent =
-    `¥${total.toFixed(2)} 元 → 成长金库`;
+
+  // Calculate debt breakdown preview (same logic as recordWeeklyOnSettle)
+  let remaining = total;
+  const debts = loadDebts();
+  for (const d of debts) {
+    if (d.status === 'paid' || remaining <= 0) continue;
+    const pay = Math.min(remaining, d.remaining);
+    remaining = Math.round((remaining - pay) * 100) / 100;
+  }
+  const debtRepaid = Math.round((total - remaining) * 100) / 100;
+  const vaultIn = remaining;
+
+  // Animate main amount from 0
+  const amountEl = document.getElementById('modalAmount');
+  amountEl.textContent = '0.00';
   document.getElementById('modalOverlay').classList.add('open');
-  launchConfetti();
+
+  // Animate number rolling up
+  const dur = 600, startTime = performance.now();
+  const tick = (now) => {
+    const t = Math.min((now - startTime) / dur, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    amountEl.textContent = (total * eased).toFixed(2);
+    if (t < 1) requestAnimationFrame(tick);
+    else amountEl.textContent = total.toFixed(2);
+  };
+  requestAnimationFrame(tick);
+
+  // Update breakdown
+  const breakdownEl = document.getElementById('modalBreakdown');
+  if (debtRepaid > 0) {
+    breakdownEl.style.display = 'block';
+    breakdownEl.innerHTML =
+      '<div class="modal-breakdown-row"><span>📊 总收益</span><span>¥' + total.toFixed(2) + '</span></div>' +
+      '<div class="modal-breakdown-row" style="color:var(--orange)"><span>💳 自动还债</span><span>−¥' + debtRepaid.toFixed(2) + '</span></div>' +
+      '<div class="modal-breakdown-row modal-breakdown-total"><span>🏦 实际入库</span><span>¥' + vaultIn.toFixed(2) + '</span></div>';
+    // Also update the transfer amount to reflect vault-only
+    document.getElementById('modalPromptAmount').textContent = `¥${vaultIn.toFixed(2)} 元 → 成长金库`;
+    document.getElementById('modalAmountLabel').textContent = '今日总收益';
+  } else {
+    breakdownEl.style.display = 'none';
+    document.getElementById('modalPromptAmount').textContent = `¥${total.toFixed(2)} 元 → 成长金库`;
+    document.getElementById('modalAmountLabel').textContent = '今日实际转账金额';
+  }
 }
 
 function recordWeeklyOnSettle() {
@@ -2261,6 +2314,7 @@ function closeModalOutside(e) {
 
 function resetAndClose() {
   recordWeeklyOnSettle();
+  launchConfetti();
   closeModal();
   setTimeout(enterSettledState, 300);
 }
@@ -2288,6 +2342,15 @@ function restoreSettledStateAfterSync() {
 }
 
 function redoToday() {
+  document.getElementById('redoConfirmOverlay').classList.add('open');
+}
+
+function closeRedoConfirm() {
+  document.getElementById('redoConfirmOverlay').classList.remove('open');
+}
+
+function confirmRedoToday() {
+  closeRedoConfirm();
   const today = getTodayStr();
   const history = loadHistory();
   const idx = history.findIndex(r => r.date === today);
@@ -2721,6 +2784,19 @@ init();
 // Update minus button state initially
 document.getElementById('studyMinus').disabled = true;
 </script>
+
+<!-- ─── 重新打卡确认弹窗 ─── -->
+<div class="debt-modal-overlay" id="redoConfirmOverlay" onclick="if(event.target===this)closeRedoConfirm()">
+  <div class="debt-modal" style="text-align:center;">
+    <div style="font-size:36px;margin-bottom:12px;">📝</div>
+    <div class="debt-modal-title" style="text-align:center;">重新打卡？</div>
+    <div style="font-size:13px;color:var(--text3);font-family:'Noto Sans SC',sans-serif;line-height:1.8;margin-bottom:24px;">
+      今日已结算的记录将被清除<br>需要重新勾选并再次结算
+    </div>
+    <button class="debt-confirm-btn" style="background:linear-gradient(135deg,#2C2417,#4A3A25);" onclick="confirmRedoToday()">确定，重新打卡</button>
+    <button class="debt-cancel-btn" onclick="closeRedoConfirm()">取消</button>
+  </div>
+</div>
 
 <!-- ─── API KEY 设置弹窗 ─── -->
 <div class="debt-modal-overlay" id="keyModalOverlay" onclick="if(event.target===this)closeKeyModal()">
