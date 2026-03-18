@@ -2839,29 +2839,6 @@ document.getElementById('studyMinus').disabled = true;
       在此设备复制上方 Bin ID，在新设备的「云同步设置」中填入相同的 Access Key 和 Bin ID，即可读取到同一份数据。
     </div>
 
-    <!-- 改名区域（有 Bin ID 时显示） -->
-    <div id="binRenameWrap" style="display:none;">
-      <div class="debt-field" style="margin-bottom:8px;">
-        <label>Bin 名称</label>
-        <div style="display:flex;gap:8px;">
-          <input type="text" id="binNameInput" placeholder="输入新名称"
-            style="flex:1;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;
-            font-size:14px;font-family:'Noto Sans SC',sans-serif;color:var(--text);
-            background:var(--bg);outline:none;transition:border-color 0.2s;"
-            onfocus="this.style.borderColor='var(--gold)'"
-            onblur="this.style.borderColor='var(--border)'">
-          <button onclick="renameBin()" style="
-            background:var(--gold-light);color:var(--gold-dark);border:none;
-            border-radius:10px;font-size:13px;font-family:'Noto Sans SC',sans-serif;
-            font-weight:500;padding:10px 14px;cursor:pointer;white-space:nowrap;
-            transition:background 0.15s;"
-            onmouseover="this.style.background='#EDD98A'"
-            onmouseout="this.style.background='var(--gold-light)'">改名</button>
-        </div>
-      </div>
-      <div id="renameStatus" style="font-size:11px;min-height:16px;margin-bottom:10px;font-family:'Noto Sans SC',sans-serif;"></div>
-    </div>
-
     <div id="keyStatus" style="font-size:12px;color:var(--red);min-height:18px;margin-bottom:8px;font-family:'Noto Sans SC',sans-serif;"></div>
     <button class="debt-confirm-btn" onclick="saveKeyAndConnect()">验证并保存</button>
     <button class="debt-cancel-btn" id="keyClearBtn" onclick="clearKey()" style="color:var(--red);display:none;">🗑 清除所有同步数据</button>
@@ -2887,12 +2864,6 @@ function openKeyModal() {
   binInp.dataset.hasExisting = existingBinId ? 'true' : 'false';
   copyBtn.style.display = existingBinId ? 'block' : 'none';
   hint.style.display = existingBinId ? 'block' : 'none';
-
-  // Rename section
-  const renameWrap = document.getElementById('binRenameWrap');
-  renameWrap.style.display = existingBinId ? 'block' : 'none';
-  document.getElementById('binNameInput').value = '';
-  document.getElementById('renameStatus').textContent = '';
 
   document.getElementById('keyStatus').textContent = '';
   document.getElementById('keyClearBtn').style.display = (existingKey || existingBinId) ? 'block' : 'none';
@@ -2980,29 +2951,6 @@ function clearKey() {
   localStorage.removeItem(JB_BIN_KEY);
   setSyncStatus('offline', '未配置 API Key');
   closeKeyModal();
-}
-
-async function renameBin() {
-  const id = localStorage.getItem(JB_BIN_KEY);
-  const name = document.getElementById('binNameInput').value.trim();
-  const statusEl = document.getElementById('renameStatus');
-  if (!id) return;
-  if (!name) {
-    statusEl.style.color = 'var(--red)';
-    statusEl.textContent = '名称不能为空';
-    return;
-  }
-  statusEl.style.color = 'var(--text3)';
-  statusEl.textContent = '改名中…';
-  try {
-    await jbReq('PUT', '/b/' + id + '/meta/name', {}, { 'X-Bin-Name': name });
-    statusEl.style.color = 'var(--green)';
-    statusEl.textContent = '✓ 已改名为「' + name + '」';
-    document.getElementById('binNameInput').value = '';
-  } catch(e) {
-    statusEl.style.color = 'var(--red)';
-    statusEl.textContent = '改名失败，请检查网络后重试';
-  }
 }
 </script><div class="debt-modal-overlay" id="repayModalOverlay" onclick="if(event.target===this)closeRepayModal()">
   <div class="debt-modal">
